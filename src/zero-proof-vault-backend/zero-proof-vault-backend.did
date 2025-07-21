@@ -1,0 +1,14 @@
+type MetadataRecord = record {
+    metadata : text;
+    blobdata : text;
+};
+
+service : {
+  "greet": (text) -> (text) query;
+  "add_entry": (text, text) -> ();
+  "add_entries_from_array": (vec MetadataRecord) -> ();
+  "get_pw_entry_by_blob": (text) -> (opt text) query;
+  "get_all_users": () -> (vec text) query;
+  "delete_entry_by_blob": (text) -> (opt text);
+  "drop_storage": () -> ();
+}

@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "src/zero-proof-vault-backend"
+]
+resolver = "2"

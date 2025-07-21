@@ -1,0 +1,469 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
+:root {
+  // Ultra-creamy light theme
+  --font-family: 'Montserrat', sans-serif;
+  --bg-color: #f7f5f0;             // ivory
+  --surface-color: #fefcf9;        // near eggshell
+  --border-color: rgba(0, 0, 0, 0.1);
+  --text-color: #3c3a37;           // soft brownish-gray
+  --text-secondary: #87837e;       // low-contrast muted gray
+  --icon-opacity: 0.35;
+  --accent-color: #d2a679;         // soft warm highlight (if used)
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+body.dark {
+  // Dark theme (Almost Cyan)
+  --bg-color: #0b0e11;
+  --surface-color: #1b2029;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --text-color: #f5f8fa;
+  --text-secondary: #a8b2c1;
+  --icon-opacity: 0.5;
+  --accent-color: #00e5ff; // cyan
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 1rem;
+  transition: background 0.3s ease, color 0.3s ease;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+button {
+  font-family: var(--font-family);
+  font-size: 0.95rem;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  color: var(--text-color);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+
+  &:hover {
+    background: var(--border-color);
+  }
+}
+
+input {
+  font-family: var(--font-family);
+  font-size: 1rem;
+  color: var(--text-color);
+  background: none;
+  border: none;
+
+  &:focus {
+    outline: none;
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+  // Scrollbar styles
+  scrollbar-width: auto;
+  scrollbar-color: var(--border-color);
+}
+
+// Scrollbar styles for WebKit browsers
+*::-webkit-scrollbar {
+  width: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border-color);
+  border-radius: 6px;
+  transition: background-color 0.3s ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.15); // this can be changed
+}
+
+.vault-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+// New Styles for Editor
+.vault-layout {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.editor {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 1rem;
+  background: rgba(0, 0, 0, 0.03);
+
+  .vault-table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th,
+    td {
+      padding: 0.6rem;
+      border-bottom: 1px solid var(--border-color);
+      text-align: left;
+    }
+
+    input {
+      background: none;
+      border: none;
+      color: var(--text-color);
+      font-family: var(--font-family);
+      font-size: 1rem;
+    }
+  }
+}
+
+// New Styles for Sidebar
+.sidebar {
+  width: 240px;
+  max-width: 20%;
+  background: rgba(0, 0, 0, 0.05);
+  border-right: 1px solid var(--border-color);
+  padding-top: 1rem;
+  padding-left: 0.3rem;
+  padding-right: 0.5rem;
+  padding-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+
+  background: var(--surface-color);
+  border-right: 1px solid var(--border-color);
+  color: var(--text-color);
+
+  max-height: 100%;
+
+  &.collapsed {
+    width: 64px;
+    min-width: 64px;
+
+    .vault-list,
+    .create-btn {
+      display: none;
+    }
+
+    .sidebar-header h3 {
+      font-size: 1.2rem;
+    }
+  }
+
+  .sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-left: 1rem;
+
+    .collapse-btn {
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+  }
+
+  .vault-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow: auto;
+    height: 90%;
+    padding-left: 0.3rem;
+
+    .vault-btn {
+      width: 100%;
+      background: none;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.5rem;
+      text-align: left;
+      cursor: pointer;
+      color: var(--text-color);
+      font-size: 0.9rem;
+
+      &.active {
+        background: rgba(0, 0, 0, 0.08);
+        font-weight: bold;
+      }
+    }
+  }
+
+  .create-btn {
+    margin-top: 1rem;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-color);
+  }
+
+  .vault-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    max-height: 100%;
+  }
+}
+
+.full-height {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.sidebar .vault-list {
+  overflow-y: auto;
+  overflow-x: hidden;
+  direction: rtl; // Flip scrollbar to left
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  // Flip content direction back to normal
+  * {
+    direction: ltr;
+  }
+}
+
+// New Styles for VaultList
+.vault-item {
+  margin-bottom: 0.5rem;
+
+  input {
+    width: 100%;
+    padding: 0.4rem;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-color);
+  }
+}
+
+td.vault-cell {
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-color);
+  padding: 0.4rem;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+}
+
+.vault-cell-wrapper {
+  display: flex;
+  align-items: center;
+  position: relative;
+
+  .vault-input {
+    flex: 1;
+    padding-right: 28px;
+  }
+
+  .eye-toggle-icon {
+    position: absolute;
+    right: 4px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+    opacity: var(--icon-opacity);
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+
+// New Styles for VaultTable
+.vault-input {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-color);
+  font-size: 1rem;
+  padding: 0.2rem 0;
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.row-control {
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  width: 30px;
+  opacity: 0.3;
+  transition: opacity 0.2s ease;
+  color: var(--text-color); // Ensures correct visibility in both themes
+  cursor: pointer;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  .remove-row {
+    font-size: 1.2rem;
+  }
+}
+
+.add-column-btn {
+  display: flex;
+  justify-content: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  opacity: 0.3;
+  transition: opacity 0.2s ease;
+  color: var(--text-color); // Ensures contrast
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+
+.vault-column-header input {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  font-weight: bold;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1rem;
+  padding: 0.3rem;
+}
+
+.vault-column-header {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.6rem;
+
+  // input {
+  //   flex: 1;
+  // }
+
+  .column-icons {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .secret-toggle-icon,
+  .remove-column-icon {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+// New Styles for TopBar
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: rgba(0, 0, 0, 0.03);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-color);
+
+  .header-left {
+    display: flex;
+    align-items: center;
+
+    h1 {
+      font-size: 1.4rem;
+      margin-right: 1rem;
+    }
+
+    .profile {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      color: gray;
+
+      .profile-icon {
+        width: 24px;
+        height: 24px;
+        background: #888;
+        border-radius: 50%;
+      }
+    }
+  }
+
+  .toolbar button {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-left: 0.5rem;
+    font-size: 0.85rem;
+  }
+}
+
+
+// Some tweaks for buttons and inputs
+button, input, .vault-btn {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+}
+
+button:hover,
+.vault-btn:hover {
+  background: rgba(0, 0, 0, 0.02); // soft hover
+}
+
+input, button {
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  box-shadow: inset 0 0 0.5px rgba(0,0,0,0.05);
+}
