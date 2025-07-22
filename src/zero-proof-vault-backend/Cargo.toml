@@ -12,4 +12,5 @@ crate-type = ["cdylib"]
 candid = "0.10"
 ic-cdk = "0.17"
 ic-cdk-macros = "0.17.1"
+ic-stable-structures = "0.7.0"
 serde = "1.0.217"

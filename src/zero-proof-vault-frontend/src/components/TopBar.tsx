@@ -24,7 +24,7 @@ export default function TopBar({ profile }: TopBarProps) {
   return (
     <div className="topbar">
       <div className="header-left">
-        <h1>ZER0x</h1>
+        <h1>Ghostkeys</h1>
         <div className="profile">
           <div className="profile-icon"></div>
           {profile?.nickname || "Anon"}

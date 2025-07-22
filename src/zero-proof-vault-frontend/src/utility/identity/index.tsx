@@ -1,4 +1,4 @@
-// identity.tsx (Refactored for ZER0x MVP)
+// (Refactored for ghostkeys MVP)
 
 import {
   createContext,
@@ -61,7 +61,7 @@ export type IdentityContextType = {
 };
 
 const IdentityContext = createContext<IdentityContextType | undefined>(undefined);
-const DB_NAME = "ZER0x-identity";
+const DB_NAME = "Ghostkeys-identity";
 const DB_VERSION = 1;
 const VAULTS_STORE = "vaults";
 const PROFILES_STORE = "profiles";
