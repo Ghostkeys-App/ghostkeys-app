@@ -5,6 +5,9 @@ use std::{borrow::Cow};
 
 // ---- Types ----
 pub type UserId = [u8; 32]; // could be hash of Principal or public key
+pub type VaultId = [u8; 32]; // could be hash of Vault name
+
+pub type VaultKey = (UserId, VaultId);
 
 #[derive(CandidType, Deserialize, Clone)]
 pub struct VaultData {

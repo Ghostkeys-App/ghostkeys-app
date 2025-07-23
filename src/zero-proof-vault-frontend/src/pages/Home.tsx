@@ -5,7 +5,7 @@ import { useIdentitySystem } from "../utility/identity";
 
 export default function Home() {
   const navigate = useNavigate();
-  const { currentVault, listVaults, switchVault, createVault } = useIdentitySystem();
+  const { listVaults, switchVault, createVault } = useIdentitySystem();
 
   useEffect(() => {
     const init = async () => {

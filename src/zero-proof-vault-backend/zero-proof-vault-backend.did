@@ -16,8 +16,11 @@ type VaultData = record {
 };
 
 type UserId = vec nat8;
+type VaultId = vec nat8;
 
 service : {
-  "add_or_update_vault": (UserId, VaultData) -> ();
-  "get_my_vault": (UserId) -> (opt VaultData) query;
+  "add_or_update_vault": (UserId, VaultId, VaultData) -> ();
+  "get_vault": (UserId, VaultId) -> (opt VaultData) query;
+  "get_all_vaults_for_user": (UserId) -> (vec VaultData) query;
+  "user_exists": (UserId) -> (bool) query;
 }
