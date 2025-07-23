@@ -261,6 +261,40 @@ input {
 .vault-item {
   margin-bottom: 0.5rem;
 
+  .vault-item-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+  }
+
+  .vault-btn {
+    flex: 1;
+  }
+
+  .vault-delete-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+    min-width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      opacity: 1;
+      background: rgba(255, 59, 48, 0.1);
+      color: #ff3b30;
+    }
+  }
+
   input {
     width: 100%;
     padding: 0.4rem;

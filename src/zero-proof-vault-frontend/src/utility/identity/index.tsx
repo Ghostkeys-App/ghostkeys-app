@@ -55,6 +55,7 @@ export type IdentityContextType = {
   createVault: (nickname: string) => Promise<Vault>;
   switchVault: (vault: Vault) => void;
   renameVault: (vaultID: string, newName: string) => Vault | undefined;
+  deleteVault: (vaultID: string) => Promise<void>;
   listVaults: () => Promise<Vault[]>;
   createProfileFromSeed: (seed: string) => Promise<UserProfile>;
   switchProfile: (profile: UserProfile) => Promise<void>;
@@ -187,6 +188,27 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     return vault;
   }
 
+  const deleteVault = async (vaultID: string): Promise<void> => {
+    if (!db.current) throw new Error("DB not initialized");
+    if (!currentProfile) throw new Error("No profile set");
+    
+    const tx = db.current.transaction(VAULTS_STORE, "readwrite");
+    const store = tx.objectStore(VAULTS_STORE);
+    
+    return new Promise((resolve, reject) => {
+      const deleteReq = store.delete(vaultID);
+      deleteReq.onsuccess = () => {
+        // If we're deleting the current vault, clear it
+        if (currentVault?.vaultID === vaultID) {
+          setCurrentVault(null);
+          localStorage.removeItem(LOCAL_STORAGE_ORGANIZATION_VAULT_ID);
+        }
+        resolve();
+      };
+      deleteReq.onerror = () => reject("Failed to delete vault");
+    });
+  };
+
   const switchVault = (vault: Vault) => {
     setCurrentVault(vault);
     localStorage.setItem(LOCAL_STORAGE_ORGANIZATION_VAULT_ID, vault.vaultID);
@@ -208,6 +230,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     createVault,
     switchVault,
     renameVault,
+    deleteVault,
     listVaults,
     createProfileFromSeed,
     switchProfile,
