@@ -63,5 +63,30 @@ fn user_exists(user_id: UserId) -> bool {
     })
 }
 
+#[update]
+fn delete_vault(user_id: UserId, vault_id: VaultId) {
+    VAULTS_MAP.with(|map| {
+        map.borrow_mut().remove(&(user_id, vault_id));
+    });
+}  
+
+#[update]
+fn clear_all_user_vaults(user_id: UserId) {
+    VAULTS_MAP.with(|map| {
+        let mut map = map.borrow_mut();
+        let keys_to_delete: Vec<_> = map
+            .iter()
+            .filter_map(|entry| {
+                let (uid, vid) = entry.key();
+                (uid == &user_id).then(|| (uid.clone(), vid.clone()))
+            })
+            .collect();
+
+        for key in keys_to_delete {
+            map.remove(&key);
+        }
+    });
+}
+
 // ---- Export DID ----
 ic_cdk::export_candid!();

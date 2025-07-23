@@ -1,26 +1,11 @@
-type Column = record {
-  id: text;
-  name: text;
-  hidden: bool;
-};
-
-type Row = record {
-  id: text;
-  values: vec text;
-};
-
-type VaultData = record {
-  name: text;
-  columns: vec Column;
-  rows: vec Row;
-};
-
-type UserId = vec nat8;
-type VaultId = vec nat8;
-
+type Column = record { id : text; name : text; hidden : bool };
+type Row = record { id : text; values : vec text };
+type VaultData = record { name : text; rows : vec Row; columns : vec Column };
 service : {
-  "add_or_update_vault": (UserId, VaultId, VaultData) -> ();
-  "get_vault": (UserId, VaultId) -> (opt VaultData) query;
-  "get_all_vaults_for_user": (UserId) -> (vec VaultData) query;
-  "user_exists": (UserId) -> (bool) query;
+  add_or_update_vault : (blob, blob, VaultData) -> ();
+  clear_all_user_vaults : (blob) -> ();
+  delete_vault : (blob, blob) -> ();
+  get_all_vaults_for_user : (blob) -> (vec record { blob; VaultData }) query;
+  get_vault : (blob, blob) -> (opt VaultData) query;
+  user_exists : (blob) -> (bool) query;
 }

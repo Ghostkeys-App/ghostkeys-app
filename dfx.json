@@ -14,7 +14,14 @@
     "zero-proof-vault-backend": {
       "candid": "src/zero-proof-vault-backend/zero-proof-vault-backend.did",
       "package": "zero-proof-vault-backend",
-      "type": "rust"
+      "type": "custom",
+      "shrink": true,
+      "gzip": true,
+      "wasm": "target/wasm32-unknown-unknown/release/zero_proof_vault_backend.wasm",
+      "build": [
+        "cargo build --target wasm32-unknown-unknown --release -p zero-proof-vault-backend --locked",
+        "candid-extractor target/wasm32-unknown-unknown/release/zero_proof_vault_backend.wasm > src/zero-proof-vault-backend/zero-proof-vault-backend.did"
+      ]
     },
     "zero-proof-vault-frontend": {
       "dependencies": [
