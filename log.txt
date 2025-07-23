@@ -1,0 +1,1 @@
+Jul 23 21:11:56.704 INFO Starting code for canister u6s2n-gx777-77774-qaaba-cai, with canister_id u6s2n-gx777-77774-qaaba-cai, version: 0.28.0

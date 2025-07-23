@@ -27,13 +27,13 @@ thread_local! {
 #[update]
 fn add_or_update_vault(user_id: UserId, vault_id: VaultId, vault: VaultData) {
     VAULTS_MAP.with(|map| {
-        map.borrow_mut().insert((user_id, vault_id), vault);
+        map.borrow_mut().insert(VaultKey { user_id, vault_id }, vault);
     });
 }
 
 #[query]
 fn get_vault(user_id: UserId, vault_id: VaultId) -> Option<VaultData> {
-    VAULTS_MAP.with(|map| map.borrow().get(&(user_id, vault_id)))
+    VAULTS_MAP.with(|map| map.borrow().get(&VaultKey { user_id, vault_id }))
 }
 
 #[query]
@@ -42,7 +42,7 @@ fn get_all_vaults_for_user(user_id: UserId) -> Vec<(VaultId, VaultData)> {
         map.borrow()
             .iter()
             .filter_map(|entry| {
-                let (uid, vid) = entry.key();
+                let VaultKey { user_id: uid, vault_id: vid } = entry.key();
                 let data = entry.value();
                 if uid == &user_id {
                     Some((vid.clone(), data.clone()))
@@ -59,14 +59,14 @@ fn user_exists(user_id: UserId) -> bool {
     VAULTS_MAP.with(|map| {
         map.borrow()
             .iter()
-            .any(|entry| entry.key().0 == user_id) // Innefficient, but simple
+            .any(|entry| entry.key().user_id == user_id) // Innefficient, but simple
     })
 }
 
 #[update]
 fn delete_vault(user_id: UserId, vault_id: VaultId) {
     VAULTS_MAP.with(|map| {
-        map.borrow_mut().remove(&(user_id, vault_id));
+        map.borrow_mut().remove(&VaultKey { user_id, vault_id });
     });
 }  
 
@@ -77,13 +77,23 @@ fn clear_all_user_vaults(user_id: UserId) {
         let keys_to_delete: Vec<_> = map
             .iter()
             .filter_map(|entry| {
-                let (uid, vid) = entry.key();
-                (uid == &user_id).then(|| (uid.clone(), vid.clone()))
+                let VaultKey { user_id: uid, vault_id: vid } = entry.key();
+                (uid == &user_id).then(|| VaultKey { user_id: uid.clone(), vault_id: vid.clone() })
             })
             .collect();
 
         for key in keys_to_delete {
             map.remove(&key);
+        }
+    });
+}
+
+#[update]
+fn apply_config_changes(changes: Vec<(UserId, VaultId, VaultData)>) {
+    VAULTS_MAP.with(|map| {
+        let mut map = map.borrow_mut();
+        for (user_id, vault_id, vault_data) in changes {
+            map.insert(VaultKey { user_id, vault_id }, vault_data);
         }
     });
 }

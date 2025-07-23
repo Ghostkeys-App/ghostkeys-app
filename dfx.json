@@ -21,6 +21,11 @@
       "build": [
         "cargo build --target wasm32-unknown-unknown --release -p zero-proof-vault-backend --locked",
         "candid-extractor target/wasm32-unknown-unknown/release/zero_proof_vault_backend.wasm > src/zero-proof-vault-backend/zero-proof-vault-backend.did"
+      ],
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
       ]
     },
     "zero-proof-vault-frontend": {
