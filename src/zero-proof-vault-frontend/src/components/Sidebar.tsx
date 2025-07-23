@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useIdentitySystem } from "../utility/identity";
+import { zero_proof_vault_backend } from "../../../declarations/zero-proof-vault-backend";
 import "../styles/theme.scss";
 
 export default function Sidebar() {
@@ -67,6 +68,7 @@ export default function Sidebar() {
 
         try {
             await deleteVault(vault.vaultID);
+            //await zero_proof_vault_backend.deleteVault(vault.vaultID);
             const updatedVaults = vaults.filter((v) => v.vaultID !== vault.vaultID);
             setVaults(updatedVaults);
             
