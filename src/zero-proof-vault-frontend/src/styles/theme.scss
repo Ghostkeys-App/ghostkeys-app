@@ -11,6 +11,14 @@
   --icon-opacity: 0.35;
   --accent-color: #d2a679;         // soft warm highlight (if used)
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  
+  // Copy box colors - light theme
+  --copy-box-bg: #e3f2fd;
+  --copy-box-text: #1976d2;
+  --copy-box-border: #bbdefb;
+  --copy-box-success-bg: #e8f5e8;
+  --copy-box-success-text: #2e7d2e;
+  --copy-box-success-border: #c8e6c9;
 }
 
 body.dark {
@@ -23,6 +31,14 @@ body.dark {
   --icon-opacity: 0.5;
   --accent-color: #00e5ff; // cyan
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  
+  // Copy box colors - dark theme
+  --copy-box-bg: rgba(0, 229, 255, 0.15);
+  --copy-box-text: #00e5ff;
+  --copy-box-border: rgba(0, 229, 255, 0.3);
+  --copy-box-success-bg: rgba(76, 175, 80, 0.2);
+  --copy-box-success-text: #81c784;
+  --copy-box-success-border: rgba(76, 175, 80, 0.4);
 }
 
 body {
@@ -433,6 +449,25 @@ td.vault-cell {
         height: 24px;
         background: #888;
         border-radius: 50%;
+      }
+
+      .copy-box {
+        background: var(--copy-box-bg);
+        color: var(--copy-box-text);
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-family: 'Courier New', monospace;
+        cursor: pointer;
+        border: 1px solid var(--copy-box-border);
+        transition: all 0.2s ease;
+        margin-left: 0.3rem;
+
+        &.copied {
+          background: var(--copy-box-success-bg);
+          color: var(--copy-box-success-text);
+          border-color: var(--copy-box-success-border);
+        }
       }
     }
   }
