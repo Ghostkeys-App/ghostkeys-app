@@ -3,85 +3,111 @@ import VaultCell from "./VaultCell";
 import setSecretIcon from "../../public/setSecret.svg";
 import unsetSecretIcon from "../../public/unSetSecret.svg";
 import minusIcon from "../../public/minus.svg";
+import { Column, TableVaultData, VaultColumns } from "../utility/vault-provider";
 
-
-type VaultBlob = Record<string, string>;
 
 interface VaultTableProps {
-    blobs: VaultBlob[];
-    passwords: Record<string, string>;
-    signedKey: Uint8Array | null;
-    setPasswords: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-    setBlobs: React.Dispatch<React.SetStateAction<VaultBlob[]>>;
+    tableVaultData: TableVaultData;
+    setTableVaultData: (newData: TableVaultData) => void;
+    columnsVaultData: VaultColumns;
+    setColumnsVaultData: (newColumns: VaultColumns) => void;
 }
+
 
 let nextColumnIndex = 1;
 
-export default function VaultTable({ blobs, setBlobs }: VaultTableProps) {
-    const [columns, setColumns] = useState<Array<{ name: string; secret: boolean }>>([
-        { name: "Name", secret: false },
-        { name: "Secret", secret: true }
-    ]);
+export default function VaultTable({ tableVaultData, setTableVaultData, columnsVaultData, setColumnsVaultData }: VaultTableProps) {
     const [editingColIndex, setEditingColIndex] = useState<number | null>(null);
+    const [{ colIndex, colNewName }, setColName] = useState<{ colIndex: number, colNewName: string }>({ colIndex: -1, colNewName: "" });
 
+    // const handleUpdate = (index: number, key: string, value: string) => {
+    //     setTableVaultData((prev) => {
+    //         const updated = new Map(prev);
+    //         updated.set({ columnId: key, rowId: index }, value);
+    //         return updated;
+    //     });
+    // };
 
-    const handleUpdate = (index: number, key: string, value: string) => {
-        setBlobs((prev) => {
-            const updated = [...prev];
-            updated[index] = { ...updated[index], [key]: value };
-            return updated;
-        });
-    };
-
-    const getDisplayRows = () => {
-        const filled = blobs;
-        const empty = Array.from({ length: 2 }, () => Object.fromEntries(columns.map(c => [c, ""])));
-        return [...filled, ...empty];
+    const handleUpdate = (rowId: number, columnId: string, value: string) => {
+        const updated = new Map(tableVaultData);
+        updated.set({ columnId, rowId }, value);
+        setTableVaultData(updated)
     };
 
     const handleAddColumn = () => {
-        setColumns([...columns, { name: `New Column ${nextColumnIndex++}`, secret: false }]);
-        setEditingColIndex(columns.length); // auto start editing
+        const newColumn: Column = { id: (columnsVaultData.size + 1).toString(), name: `New Column ${nextColumnIndex++}`, hidden: false };
+        const updated = new Map(columnsVaultData)
+        updated.set(newColumn.name, newColumn);
+        setColumnsVaultData(updated);
+        setEditingColIndex(columnsVaultData.size); // auto start editing
     };
 
-    const handleUpdateColumnName = (index: number, newName: string) => {
-        if (columns.find(c => c.name === newName)) {
+    const editColumnName = (index: number, newName: string) => {
+        setColName({ colIndex: index, colNewName: newName });
+    };
+
+    const handleUpdateColumnName = () => {
+        const { index, newName } = { index: colIndex, newName: colNewName.trim() };
+
+        if (columnsVaultData.has(newName)) {
             window.alert("Column name is the same, no changes made.");
             setEditingColIndex(null);
             return;
         }
-        const updated = [...columns];
-        updated[index].name = newName;
-        setColumns(updated);
+        const updated = new Map(columnsVaultData);
+        const oldName = [...updated.keys()][index];
+        updated.delete(oldName);
+        updated.set(newName, { id: (updated.size + 1).toString(), name: newName, hidden: false });
+        setColumnsVaultData(updated);
     }
 
-    const handleDeleteRow = (rowIndex: number) => {
-        const updated = [...blobs];
-        updated.splice(rowIndex, 1);
-        setBlobs(updated);
+    const handleDeleteRow = (rowId: number) => {
+        const coordinatesToDelete = Array.from(tableVaultData.keys()).filter(key => key.rowId === rowId);
+        coordinatesToDelete.forEach(key => tableVaultData.delete(key));
+        setTableVaultData(new Map(tableVaultData)); // trigger re-render
     };
 
-    const toggleColumnSecret = (index: number) => {
-        const updated = [...columns];
-        updated[index].secret = !updated[index].secret;
-        setColumns(updated);
+    const toggleColumnSecret = (index: number, hiddenVal: boolean) => {
+        const updated = columnsVaultData.get(index.toString());
+        updated!.hidden = hiddenVal;
+        columnsVaultData.set(index.toString(), updated!);
+        setColumnsVaultData(new Map(columnsVaultData)); // trigger re-render
     };
 
     const handleDeleteColumn = (index: number) => {
-        const confirmDelete = window.confirm(`Are you sure you want to delete column "${columns[index].name}"?`);
+        const confirmDelete = window.confirm(`Are you sure you want to delete column "${columnsVaultData.get(index.toString())?.name}"?`);
         if (!confirmDelete) return;
 
-        const updatedCols = columns.filter((_, i) => i !== index);
-        const updatedRows = blobs.map((row) => {
-            const newRow = { ...row };
-            delete newRow[columns[index].name];
-            return newRow;
-        });
+        columnsVaultData.delete(index.toString());
 
-        setColumns(updatedCols);
-        setBlobs(updatedRows);
+        const cellsToDelete = Array.from(tableVaultData.keys()).filter(key => key.columnId === index.toString());
+        cellsToDelete.forEach(key => tableVaultData.delete(key));
+
+        setColumnsVaultData(new Map(columnsVaultData));
+        setTableVaultData(new Map(tableVaultData)); // trigger re-render
+        setEditingColIndex(null);
     };
 
+    // Highly inneficient
+    const getRowsGrouped = () => {
+        const rowsGrouped: Record<number, Record<string, string>> = {};
+        let lastRowNumber = 1;
+        tableVaultData.forEach((value, { columnId, rowId }) => {
+            if (!rowsGrouped[rowId]) rowsGrouped[rowId] = {};
+            rowsGrouped[rowId][columnId] = value;
+            lastRowNumber = rowId;
+        });
+        for (let _ = 0; _ < 2; _++) {
+            lastRowNumber++;
+            for (let i = 1; i <= columnsVaultData.size; i++) {
+                if (!rowsGrouped[lastRowNumber]) rowsGrouped[lastRowNumber] = {};
+                rowsGrouped[lastRowNumber][i] = '';
+            }
+        }
+        console.log(lastRowNumber);
+        console.log(rowsGrouped);
+        return { rowsGrouped, lastRowNumber };
+    }
 
     return (
         <div className="editor">
@@ -89,17 +115,20 @@ export default function VaultTable({ blobs, setBlobs }: VaultTableProps) {
                 <thead>
                     <tr>
                         <th style={{ width: "30px" }}></th>
-                        {columns.map((col, idx) => (
-                            <th key={idx} className="vault-column-header">
+                        {Array.from(columnsVaultData.entries()).map(([key, col], idx) => (
+                            <th key={col.id} className="vault-column-header">
                                 <div className="column-header">
                                     {editingColIndex === idx ? (
                                         <input
                                             autoFocus
                                             value={col.name}
-                                            onChange={(e) => handleUpdateColumnName(idx, e.target.value)}
+                                            onChange={(e) => editColumnName(idx, e.target.value)}
                                             onBlur={() => setEditingColIndex(null)}
                                             onKeyDown={(e) => {
-                                                if (e.key === "Enter") setEditingColIndex(null);
+                                                if (e.key === "Enter") {
+                                                    handleUpdateColumnName();
+                                                    setEditingColIndex(null);
+                                                }
                                             }}
                                         />
                                     ) : (
@@ -108,10 +137,10 @@ export default function VaultTable({ blobs, setBlobs }: VaultTableProps) {
 
                                     <div className="column-icons">
                                         <img
-                                            src={col.secret ? setSecretIcon : unsetSecretIcon}
-                                            alt={col.secret ? "Secret" : "Plain"}
+                                            src={col.hidden ? setSecretIcon : unsetSecretIcon}
+                                            alt={col.hidden ? "Secret" : "Plain"}
                                             className="secret-toggle-icon"
-                                            onClick={() => toggleColumnSecret(idx)}
+                                            onClick={() => toggleColumnSecret(idx, col.hidden)}
                                         />
                                         <img
                                             src={minusIcon}
@@ -121,7 +150,6 @@ export default function VaultTable({ blobs, setBlobs }: VaultTableProps) {
                                         />
                                     </div>
                                 </div>
-
                             </th>
                         ))}
                         <th className="add-column-btn">
@@ -131,32 +159,37 @@ export default function VaultTable({ blobs, setBlobs }: VaultTableProps) {
                 </thead>
 
                 <tbody>
-                    {getDisplayRows().map((row, rowIndex) => {
-                        const isExtra = rowIndex >= blobs.length;
+                    {(() => {
+                        const { rowsGrouped, lastRowNumber } = getRowsGrouped();
+                        return Object.entries(rowsGrouped).map(([rowIdStr, row]) => {
+                            const rowId = parseInt(rowIdStr);
+                            const isExtra = rowId >= lastRowNumber;
 
-                        return (
-                            <tr key={rowIndex} className={isExtra ? "extra-row" : ""}>
-                                <td className="row-control" onClick={() => !isExtra ? handleDeleteRow(rowIndex) : null}>
-                                    {!isExtra && (
-                                        <span
-                                            className="remove-row"
-                                        >─</span>
-                                    )}
-                                </td>
-                                {columns.map((col, colIndex) => (
-                                    <td key={colIndex} className="vault-cell">
-                                        <VaultCell
-                                            type={col.secret ? "password" : "text"}
-                                            value={row[col.name] || ""}
-                                            onChange={(val) => handleUpdate(rowIndex, col.name, val)}
-                                        />
+                            return (
+                                <tr key={rowId} className={isExtra ? "extra-row" : ""}>
+                                    <td className="row-control" onClick={() => !isExtra ? handleDeleteRow(rowId) : null}>
+                                        {!isExtra && (
+                                            <span className="remove-row">─</span>
+                                        )}
                                     </td>
-                                ))}
-                            </tr>
-                        );
-                    })}
+                                    {Array.from(columnsVaultData.values()).map((col) => (
+                                        <td key={col.id} className="vault-cell">
+                                            <VaultCell
+                                                type={col.hidden ? "password" : "text"}
+                                                value={row[col.name] || ""}
+                                                onChange={(val) => handleUpdate(rowId, col.name, val)}
+                                            />
+                                        </td>
+                                    ))}
+                                </tr>
+                            );
+                        })
+                    })()
+                    }
                 </tbody>
+
             </table>
         </div>
     );
+
 }

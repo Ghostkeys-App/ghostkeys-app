@@ -7,6 +7,7 @@ import { hkdf } from "@noble/hashes/hkdf";
 // while allowing the prev to work
 const VAULT_KDF_MSG = "vault-key-derivation-v1";
 
+// Derive a key for vault encryption using Phantom wallet signature (Might be used in the future)
 export const deriveVaultKey = async () => {
     const provider = (window as any).solana;
     const msg = new TextEncoder().encode(VAULT_KDF_MSG);

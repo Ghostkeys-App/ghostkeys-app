@@ -16,6 +16,11 @@ export const CONSTANTS = {
   LOCAL_STORAGE_ORGANIZATION_VAULT_ID,
 };
 
+export const DB_NAME = "Ghostkeys-identity";
+export const DB_VERSION = 1;
+export const VAULTS_STORE = "vaults";
+export const PROFILES_STORE = "profiles";
+
 export function shortenAddress(address: string): string {
   // if less than 10 chars, throw error
   if (address.length < 10) {

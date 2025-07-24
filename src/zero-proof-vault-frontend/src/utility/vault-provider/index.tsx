@@ -1,0 +1,179 @@
+import { createContext, ReactNode, useContext, useEffect, useRef, useState } from "react";
+import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
+import { useIdentitySystem } from "../identity";
+import { zero_proof_vault_backend } from "../../../../declarations/zero-proof-vault-backend";
+import { decryptPasswordBlob } from "../crypto/encdcrpt";
+
+export type Column = {
+    id: string;
+    name: string;
+    hidden: boolean;
+};
+
+export type Row = {
+    id: string;
+    values: Array<string>;
+};
+
+export type VaultData = {
+    name: string,
+    columns: Array<Column>,
+    rows: Array<Row>
+}
+
+export type TableCoordinates = {
+    columnId: string;
+    rowId: number;
+};
+
+
+export type VaultColumns = Map<string, Column>;
+export type TableVaultData = Map<TableCoordinates, string>;
+
+export type VaultDataMap = Map<string, TableVaultData>;
+export type TableVaultColumnDataMap = Map<string, VaultColumns>;
+
+export type DataVaultColumn = { vaultDataMap: VaultDataMap, tableVaultColumnDataMap: TableVaultColumnDataMap };
+
+export const DB_NAME_VAULTS = "Ghostkeys-persistent-vaults";
+export const DB_VERSION_VAULTS = 1;
+export const VAULTS_STORE_VAULTS = "vaults";
+
+export type VaultProviderContext = {
+    setSyncedWithStable: (synced: boolean) => void;
+    // setVaultData: (vaultData: VaultData) => void;
+    // getVaultData: (userIcpPublicAddress: string, vaultIcpPublicAddress: string) => VaultData;
+    setAllVaultsData: (vaultData: VaultDataMap, vaultColumns: TableVaultColumnDataMap) => void;
+    getAllVaultsData: (userIcpPublicAddress: string) => Promise<{ vaultTableData: VaultDataMap, vaultColumns: TableVaultColumnDataMap }>;
+    syncedWithStable: boolean;
+    vaultsColumns: TableVaultColumnDataMap;
+    vaultsData: VaultDataMap;
+};
+
+const VaultContext = createContext<VaultProviderContext | undefined>(undefined);
+
+
+export function VaultContextProvider({ children }: { children: ReactNode }) {
+    const db = useRef<IDBDatabase | null>(null);
+
+    const [isReady, setIsReady] = useState(false);
+    const [syncedWithStable, setSyncedWithStable] = useState(false);
+    const [vaultsData, setVaultsData] = useState<VaultDataMap>(new Map());
+    const [vaultsColumns, setVaultsColumns] = useState<TableVaultColumnDataMap>(new Map());
+    const { currentProfile, deriveSignatureFromPublicKey } = useIdentitySystem();
+
+    useEffect(() => {
+        const init = async () => {
+
+            const request = indexedDB.open(DB_NAME_VAULTS, DB_VERSION_VAULTS);
+
+            request.onupgradeneeded = (e) => {
+                const db = (e.target as IDBOpenDBRequest).result;
+                if (!db.objectStoreNames.contains(VAULTS_STORE_VAULTS)) {
+                    db.createObjectStore(VAULTS_STORE_VAULTS, { keyPath: "all_vaults" });
+                }
+            };
+
+            request.onsuccess = async (e) => {
+                db.current = (e.target as IDBOpenDBRequest).result;
+                await bootstrap();
+                setIsReady(true);
+            };
+        };
+        init();
+        setIsReady(true);
+    }, []);
+
+    const bootstrap = async () => {
+        if (!db.current) throw new Error("DB not initialized");
+
+        const tx = db.current.transaction(VAULTS_STORE_VAULTS, "readonly");
+        const store = tx.objectStore(VAULTS_STORE_VAULTS);
+        const req = store.getAll();
+        const allVaults: DataVaultColumn[] = await new Promise((res, rej) => {
+            req.onsuccess = () => res(req.result as DataVaultColumn[]);
+            req.onerror = () => rej("Failed to list vaults");
+        });
+        if (allVaults.length > 0) {
+            const vaultData: DataVaultColumn = allVaults[0];
+            setVaultsData(vaultData.vaultDataMap);
+            setVaultsColumns(vaultData.tableVaultColumnDataMap);
+        } else {
+            if (!currentProfile || !currentProfile.icpPublicKey) {
+                console.error("No current profile or ICP public address found");
+                return;
+            }
+            try {
+                const { vaultTableData, vaultColumns } = await getAllVaultsData(currentProfile.icpPublicKey);
+                setVaultsData(vaultTableData);
+                setVaultsColumns(vaultColumns);
+                setSyncedWithStable(true);
+            } catch (error) {
+                console.error(error);
+                return;
+            }
+        }
+    };
+
+    const getAllVaultsData = async (userIcpPublicAddress: string): Promise<{ vaultTableData: VaultDataMap, vaultColumns: TableVaultColumnDataMap }> => {
+        if (!currentProfile || !currentProfile.icpPublicKey) {
+            throw new Error("No current profile or ICP public address found");
+        }
+
+        const vaults = await zero_proof_vault_backend.get_all_vaults_for_user(userIcpPublicAddress);
+        const vaultDataMap: VaultDataMap = new Map();
+        const vaultDataColumns: TableVaultColumnDataMap = new Map();
+
+        vaults.forEach(async ([vaultId, vaultData]) => {
+            const vaultMap: TableVaultData = new Map();
+            const vaultColumns: VaultColumns = new Map();
+
+            const vaultSignature = await deriveSignatureFromPublicKey(vaultId);
+            vaultData.rows.forEach(async (row) => {
+                row.values.forEach(async (value, index) => {
+                    const coordinates: TableCoordinates = { columnId: vaultData.columns[index].id, rowId: parseInt(row.id) };
+                    const decryptedValue = await decryptPasswordBlob(value, vaultSignature);
+                    vaultMap.set(coordinates, decryptedValue);
+                });
+            });
+            vaultData.columns.forEach((col) => {
+                vaultColumns.set(col.id, { id: col.id, name: col.name, hidden: false });
+            });
+            vaultDataMap.set(vaultId, vaultMap);
+            vaultDataColumns.set(vaultId, vaultColumns);
+        });
+
+        return { vaultTableData: vaultDataMap, vaultColumns: vaultDataColumns };
+    }
+
+    const setAllVaultsData = (vaultData: VaultDataMap, vaultColumns: TableVaultColumnDataMap) => {
+        setVaultsData(vaultData);
+        setVaultsColumns(vaultColumns);
+
+        if (!db.current) throw new Error("DB not initialized");
+        const tx = db.current.transaction(VAULTS_STORE_VAULTS, "readwrite");
+        const store = tx.objectStore(VAULTS_STORE_VAULTS);
+        const storedData: DataVaultColumn = { vaultDataMap: vaultData, tableVaultColumnDataMap: vaultColumns };
+        store.put({all_vaults: "all_vaults", ...storedData});
+    }
+
+    const contextValue: VaultProviderContext = {
+        setSyncedWithStable,
+        syncedWithStable,
+        // setVaultData,
+        // getVaultData,
+        setAllVaultsData,
+        getAllVaultsData,
+        vaultsColumns,
+        vaultsData,
+    };
+
+    if (!isReady) return <LoadingAnimation />;
+    return <VaultContext.Provider value={contextValue}>{children}</VaultContext.Provider>;
+};
+
+export function useVaultProvider() {
+    const ctx = useContext(VaultContext);
+    if (!ctx) throw new Error("useVaultProvider must be inside provider");
+    return ctx;
+}

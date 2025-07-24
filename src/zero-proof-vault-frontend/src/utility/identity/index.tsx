@@ -10,11 +10,15 @@ import {
   useRef,
 } from "react";
 import {
+  DB_NAME,
+  DB_VERSION,
   LOCAL_STORAGE_EVM_PUBLIC_ADDRESS,
   LOCAL_STORAGE_ICP_PUBLIC_ADDRESS,
   LOCAL_STORAGE_ORGANIZATION_VAULT_ID,
   LOCAL_STORAGE_SEED_PHRASE,
+  PROFILES_STORE,
   shortenAddress,
+  VAULTS_STORE,
 } from "./constants";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
 import { Principal } from "@dfinity/principal";
@@ -58,13 +62,10 @@ export type IdentityContextType = {
   listVaults: () => Promise<Vault[]>;
   createProfileFromSeed: (seed: string) => Promise<UserProfile>;
   switchProfile: (profile: UserProfile) => Promise<void>;
+  deriveSignatureFromPublicKey: (publicKey: string) => Promise<Uint8Array>;
 };
 
 const IdentityContext = createContext<IdentityContextType | undefined>(undefined);
-const DB_NAME = "Ghostkeys-identity";
-const DB_VERSION = 1;
-const VAULTS_STORE = "vaults";
-const PROFILES_STORE = "profiles";
 
 const deriveEd25519KeyFromSeed = async (seed: Uint8Array): Promise<Uint8Array> => {
   const hash = await crypto.subtle.digest("SHA-256", seed);
@@ -121,11 +122,16 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(LOCAL_STORAGE_ICP_PUBLIC_ADDRESS, profile.icpPublicAddress);
   };
 
-  const createProfileFromSeed = useCallback(async (seed: string): Promise<UserProfile> => {
-    const evm = mnemonicToAccount(seed);
+  const getPrincipalFromSeed = async (seed: string): Promise<Principal> => {
     const derivedKey = await deriveEd25519KeyFromSeed(mnemonicToSeedSync(seed));
     const identity = Ed25519KeyIdentity.fromSecretKey(derivedKey);
-    const principal = identity.getPrincipal().toString();
+    const principal = identity.getPrincipal();
+    return principal;
+  }
+
+  const createProfileFromSeed = useCallback(async (seed: string): Promise<UserProfile> => {
+    const evm = mnemonicToAccount(seed);
+    const principal = (await getPrincipalFromSeed(seed)).toString();
 
     return {
       userID: `UserID_${principal}`,
@@ -144,7 +150,6 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   const switchProfile = async (profile: UserProfile) => {
     const derivedKey = await deriveEd25519KeyFromSeed(mnemonicToSeedSync(profile.seedPhrase));
     const identity = Ed25519KeyIdentity.fromSecretKey(derivedKey);
-    //const publicKeyRaw = identity.getPublicKey().toRaw(); // returns Uint8Array
     const principal = identity.getPrincipal();
 
     setCurrentProfile({
@@ -161,11 +166,13 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
 
   const createVault = async (nickname: string): Promise<Vault> => {
     if (!currentProfile) throw new Error("No profile set");
-    const vaultID = `Vault_${currentProfile.userID}_${Date.now()}`;
+    const generated = (generate(12) as string[]).join(" ");
+    const tempIcpPublicAddress = (await getPrincipalFromSeed(generated)).toString();
+    const vaultID = `Vault_${tempIcpPublicAddress}`;
     const newVault: Vault = {
       vaultID,
       nickname,
-      icpPublicAddress: currentProfile.icpPublicKey,
+      icpPublicAddress: tempIcpPublicAddress,
       endpoint: "",
     };
     if (!db.current) throw new Error("DB not initialized");
@@ -202,6 +209,14 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const deriveSignatureFromPublicKey = async (publicKey: string): Promise<Uint8Array> => {
+    const identity = currentProfile!.icpAccount?.identity;
+    const signature = await identity!.sign(new TextEncoder().encode(publicKey));
+    const keyMaterial = await crypto.subtle.digest("SHA-256", signature);
+    const derivedKey = new Uint8Array(keyMaterial).slice(0, 32);
+    return derivedKey;
+  };
+
   const contextValue: IdentityContextType = {
     currentVault,
     currentProfile,
@@ -211,6 +226,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     listVaults,
     createProfileFromSeed,
     switchProfile,
+    deriveSignatureFromPublicKey,
   };
 
   if (!isReady) return <LoadingAnimation />;
