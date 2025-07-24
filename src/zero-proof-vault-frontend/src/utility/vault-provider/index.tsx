@@ -184,9 +184,6 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     }
 
     const setAllVaultsData = (vaultData: VaultDataMap, vaultColumns: TableVaultColumnDataMap) => {
-        setVaultsData(vaultData);
-        setVaultsColumns(vaultColumns);
-
         if (!db.current) throw new Error("DB not initialized");
         const tx = db.current.transaction(VAULTS_STORE_VAULTS, "readwrite");
         const store = tx.objectStore(VAULTS_STORE_VAULTS);

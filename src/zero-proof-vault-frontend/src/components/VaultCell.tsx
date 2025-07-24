@@ -22,7 +22,7 @@ export default function VaultCell({ type, value, onChange, handleOnChange }: Vau
     if (!newValue) return;
     setHasData(newValue.length > 0);
     onChange(newValue);
-  };
+  };  
 
   return (
     <div className="vault-cell-wrapper">

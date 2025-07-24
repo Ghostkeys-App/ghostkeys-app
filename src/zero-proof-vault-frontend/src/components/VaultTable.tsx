@@ -19,11 +19,48 @@ let nextColumnIndex = 1;
 export default function VaultTable({ tableVaultData, setTableVaultData, columnsVaultData, setColumnsVaultData }: VaultTableProps) {
     const [editingColIndex, setEditingColIndex] = useState<number | null>(null);
     const [{ colIndex, colNewName }, setColName] = useState<{ colIndex: number, colNewName: string }>({ colIndex: -1, colNewName: "" });
+    const [innerTableVaultData, setInnerTableVaultData] = useState(tableVaultData);
 
-    const handleUpdate = (rowId: number, columnId: string, value: string) => {
-        const updated = new Map(tableVaultData);
-        updated.set({ columnId, rowId }, value);
-        setTableVaultData(updated);
+    const rows = buildRows(innerTableVaultData, columnsVaultData);
+
+    const handleUpdate = (rowId: number, columnId: string, newValue: string) => {
+        let colEntry = Array.from(columnsVaultData.values()).find(c => c.id === columnId);
+        if (!colEntry) return;
+        const updatedMap = new Map(tableVaultData);
+        let matchingKey = [...updatedMap.keys()].find(
+            (k) => k.rowId === rowId && k.columnId === columnId
+        );
+        if (matchingKey) {
+            updatedMap.set(matchingKey, newValue);
+        } else {
+            updatedMap.set({ rowId, columnId }, newValue);
+        }
+        // Debug logs
+        // console.log("Update map");
+        // console.log(updatedMap);
+        setInnerTableVaultData(updatedMap);
+        setTableVaultData(updatedMap);
+    };
+
+
+    const handleDeleteRow = (rowIdToDelete: number) => {
+        const updatedMap = new Map(tableVaultData);
+        tableVaultData.forEach((value, key) => {
+            if (key.rowId === rowIdToDelete) {
+                updatedMap.delete(key);
+                return;
+            };
+            const newRowId = key.rowId > rowIdToDelete ? key.rowId - 1 : key.rowId;
+            updatedMap.delete(key);
+            updatedMap.set({ rowId: newRowId, columnId: key.columnId }, value);
+        });
+        // Debug logs
+        // console.log("Delete map");
+        // console.log(updatedMap);
+        setInnerTableVaultData(updatedMap);
+        setTableVaultData(updatedMap);
+        // This is bad... however for now is fine. Persistence is taken care with context and indexedDB - solid result for now
+        setTimeout(() => window.location.reload(), 100);
     };
 
     const handleAddColumn = () => {
@@ -53,21 +90,6 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
         setColumnsVaultData(updated);
     }
 
-    const handleDeleteRow = (rowIdToDelete: number) => {
-        const updatedMap: TableVaultData = new Map();
-        tableVaultData.forEach((value, key) => {
-            const { columnId, rowId } = key;
-            if (rowId === rowIdToDelete) {
-                return;
-            }
-            if (rowId > rowIdToDelete) {
-                updatedMap.set({ columnId, rowId: rowId - 1 }, value);
-            } else {
-                updatedMap.set(key, value);
-            }
-        });
-        setTableVaultData(updatedMap);
-    };
 
 
     const toggleColumnSecret = (index: number, hiddenVal: boolean) => {
@@ -92,36 +114,32 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
     };
 
     // Highly inneficient
-    const getRowsGrouped = () => {
-        const rowsGrouped: Record<number, Record<string, string>> = {};
-
+    function buildRows(
+        data: TableVaultData,
+        columns: VaultColumns
+    ): Record<number, Record<string, string>> {
+        const rows: Record<number, Record<string, string>> = {};
         let maxRowId = 0;
 
-        // Group real rows
-        tableVaultData.forEach((value, { columnId, rowId }) => {
-            if (!rowsGrouped[rowId]) rowsGrouped[rowId] = {};
-            rowsGrouped[rowId][columnId] = value;
+        data.forEach((value, { rowId, columnId }) => {
+            const col = columns.get(columnId);
+            if (!col) return;
+            if (!rows[rowId]) rows[rowId] = {};
+            rows[rowId][col.name] = value;
             if (rowId > maxRowId) maxRowId = rowId;
         });
 
-        // Remove truly empty rows (if any were left by mistake)
-        Object.entries(rowsGrouped).forEach(([rowIdStr, row]) => {
-            const hasData = Object.values(row).some((val) => val.trim() !== "");
-            if (!hasData) delete rowsGrouped[parseInt(rowIdStr)];
-        });
-
-        // Add 2 empty rows at the end
-        let newId = maxRowId + 1;
-        for (let i = 0; i < 2; i++, newId++) {
-            rowsGrouped[newId] = {};
-            for (const col of columnsVaultData.values()) {
-                rowsGrouped[newId][col.id] = "";
+        // Append 2 empty rows
+        for (let i = 1; i <= 2; i++) {
+            const rowId = maxRowId + i;
+            rows[rowId] = {};
+            for (const col of columns.values()) {
+                rows[rowId][col.name] = "";
             }
         }
 
-        return { rowsGrouped };
-    };
-
+        return rows;
+    }
 
     return (
         <div className="editor">
@@ -173,22 +191,22 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
                 </thead>
 
                 <tbody>
-                    {(() => {
-                        const { rowsGrouped } = getRowsGrouped();
-                        return Object.entries(rowsGrouped).map(([rowIdStr, row]) => {
-                            const rowId = parseInt(rowIdStr);
-                            return (
-                                <VaultRow
-                                    rowId={rowId}
-                                    row={row}
-                                    columnsVaultData={columnsVaultData}
-                                    handleDeleteRow={handleDeleteRow}
-                                    handleUpdate={handleUpdate}
-                                />
-                            );
+                    {Object.entries(rows)
+                        .filter(([_, row], idx, arr) => {
+                            const isEmpty = Object.values(row).every((v) => v.trim() === "");
+                            const isOneOfLastTwo = idx >= arr.length - 2;
+                            return !isEmpty || isOneOfLastTwo;
                         })
-                    })()
-                    }
+                        .map(([rowIdStr, row]) => (
+                            <VaultRow
+                                key={rowIdStr}
+                                rowId={parseInt(rowIdStr)}
+                                row={row}
+                                columnsVaultData={columnsVaultData}
+                                handleUpdate={handleUpdate}
+                                handleDeleteRow={handleDeleteRow}
+                            />
+                        ))}
                 </tbody>
 
             </table>

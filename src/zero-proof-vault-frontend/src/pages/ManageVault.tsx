@@ -50,6 +50,7 @@ export default function ManageVault() {
     setVaultData(newData);
     if (currentVault) {
       const updatedVaultsData = new Map(vaultsData);
+      updatedVaultsData.delete(currentVault.icpPublicAddress);
       updatedVaultsData.set(currentVault.icpPublicAddress, newData);
       setAllVaultsData(updatedVaultsData, vaultsColumns);
     }
@@ -59,6 +60,7 @@ export default function ManageVault() {
     setColumnData(newColumns);
     if (currentVault) {
       const updatedVaultsColumns = new Map(vaultsColumns);
+      updatedVaultsColumns.delete(currentVault.icpPublicAddress);
       updatedVaultsColumns.set(currentVault.icpPublicAddress, newColumns);
       setAllVaultsData(vaultsData, updatedVaultsColumns);
     }
