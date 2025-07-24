@@ -2,7 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useRef, useState } fro
 import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
 import { useIdentitySystem } from "../identity";
 import { zero_proof_vault_backend } from "../../../../declarations/zero-proof-vault-backend";
-import { decryptPasswordBlob } from "../crypto/encdcrpt";
+import { decryptPasswordBlob, encryptPasswordBlob } from "../crypto/encdcrpt";
 
 export type Column = {
     id: string;
@@ -43,6 +43,7 @@ export type VaultProviderContext = {
     setSyncedWithStable: (synced: boolean) => void;
     // setVaultData: (vaultData: VaultData) => void;
     // getVaultData: (userIcpPublicAddress: string, vaultIcpPublicAddress: string) => VaultData;
+    syncVaultsWithBackend: () => Promise<void>;
     setAllVaultsData: (vaultData: VaultDataMap, vaultColumns: TableVaultColumnDataMap) => void;
     getAllVaultsData: (userIcpPublicAddress: string) => Promise<{ vaultTableData: VaultDataMap, vaultColumns: TableVaultColumnDataMap }>;
     syncedWithStable: boolean;
@@ -183,6 +184,42 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         return { vaultTableData: vaultDataMap, vaultColumns: vaultDataColumns };
     }
 
+    const syncVaultsWithBackend = async () => {
+        if (!currentProfile) {
+            console.error("Cannot sync: no current profile");
+            return;
+        }
+
+        const updates: [string, string, VaultData][] = [];
+
+        for (const [vaultId, dataMap] of vaultsData.entries()) {
+            const vaultSignature = await deriveSignatureFromPublicKey(vaultId);
+            const columns = vaultsColumns.get(vaultId);
+            if (!columns) continue;
+            const columnsArray = Array.from(columns.values());
+            const rowMap: Map<number, Row> = new Map();
+
+            for (const [{ rowId, columnId }, value] of dataMap.entries()) {
+                const col = columns.get(columnId);
+                if (!col) continue;
+                const row = rowMap.get(rowId) || { id: rowId.toString(), values: [] };
+
+                // encrypt value using derived signature from vault public key
+                const hashedValue = await encryptPasswordBlob(value, vaultSignature);
+                row.values[parseInt(col.id)] = hashedValue;
+                rowMap.set(rowId, row);
+            }
+            const rows: Row[] = Array.from(rowMap.values()).map((r) => {
+                const filled = columnsArray.map((col) => r.values[parseInt(col.id)] ?? "");
+                return { id: r.id, values: filled };
+            });
+
+            updates.push([currentProfile.icpPublicKey, vaultId, { name: vaultId, columns: columnsArray, rows }]);
+        }
+        await zero_proof_vault_backend.apply_config_changes(updates);
+    };
+
+
     const setAllVaultsData = (vaultData: VaultDataMap, vaultColumns: TableVaultColumnDataMap) => {
         if (!db.current) throw new Error("DB not initialized");
         const tx = db.current.transaction(VAULTS_STORE_VAULTS, "readwrite");
@@ -200,6 +237,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         syncedWithStable,
         // setVaultData,
         // getVaultData,
+        syncVaultsWithBackend,
         setAllVaultsData,
         getAllVaultsData,
         vaultsColumns,

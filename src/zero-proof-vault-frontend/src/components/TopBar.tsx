@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import { useIdentitySystem } from "../utility/identity";
 import "../styles/theme.scss";
+import { useVaultProvider } from "../utility/vault-provider";
 
 interface TopBarProps {
   profile: any;
@@ -10,6 +11,9 @@ export default function TopBar({ profile }: TopBarProps) {
   const { currentProfile } = useIdentitySystem();
   const id = currentProfile?.icpPublicKey || "";
   const [showCopied, setShowCopied] = useState(false);
+
+  const { syncVaultsWithBackend } = useVaultProvider();
+
 
   const shortenId = (id: string): string => {
     if (!id || id.length <= 16) return id;
@@ -51,9 +55,14 @@ export default function TopBar({ profile }: TopBarProps) {
     // You can later trigger actual download here.
   };
 
-  const saveToChain = () => {
-    alert("📡 Save to chain clicked (functionality not yet implemented)");
-    // This would later push updates to your backend
+  const saveToChain = async () => {
+    try {
+      await syncVaultsWithBackend();
+      alert("Vaults synced to chain");
+    } catch (err) {
+      console.error("Sync failed", err);
+      alert("Failed to sync with backend");
+    }
   };
 
   return (
@@ -64,9 +73,9 @@ export default function TopBar({ profile }: TopBarProps) {
           <div className="profile-icon"></div>
           {profile?.nickname || "Anon"}
           {id && (
-            <div 
+            <div
               className={`copy-box ${showCopied ? 'copied' : ''}`}
-              onClick={copyToClipboard} 
+              onClick={copyToClipboard}
               title={`Click to copy full ID: ${id}`}
             >
               {showCopied ? "Copied ✓" : shortenId(id)}
