@@ -6,9 +6,10 @@ interface VaultCellProps {
   type: "text" | "password";
   value: string;
   onChange: (value: string) => void;
+  handleOnChange: (value: string) => void;
 }
 
-export default function VaultCell({ type, value, onChange }: VaultCellProps) {
+export default function VaultCell({ type, value, onChange, handleOnChange }: VaultCellProps) {
   const [revealed, setRevealed] = useState(false);
   const [hasData, setHasData] = useState(false);
   const isSecret = type === "password";
@@ -18,6 +19,7 @@ export default function VaultCell({ type, value, onChange }: VaultCellProps) {
   }, [value]);
 
   const handleChange = (newValue: string) => {
+    if (!newValue) return;
     setHasData(newValue.length > 0);
     onChange(newValue);
   };
@@ -28,6 +30,7 @@ export default function VaultCell({ type, value, onChange }: VaultCellProps) {
         type={isSecret && !revealed ? "password" : "text"}
         defaultValue={value}
         onBlur={(e) => handleChange(e.target.value)}
+        onChange={(e) => handleOnChange(e.target.value)}
         className="vault-input"
       />
       {isSecret && hasData && (

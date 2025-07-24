@@ -12,11 +12,11 @@ if (savedTheme === "dark") {
 
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+  <>
     <IdentitySystemProvider>
       <VaultContextProvider>
         <App />
       </VaultContextProvider>
     </IdentitySystemProvider>
-  </React.StrictMode>,
+  </>,
 );

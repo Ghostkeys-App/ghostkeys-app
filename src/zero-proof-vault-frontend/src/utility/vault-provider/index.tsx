@@ -84,6 +84,23 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         setIsReady(true);
     }, []);
 
+    const serializeVaultDataMap = (vaultDataMap: VaultDataMap) => {
+        const serialized: Record<string, [string, string][]> = {};
+        for (const [vaultId, map] of vaultDataMap.entries()) {
+            serialized[vaultId] = Array.from(map.entries()).map(([k, v]) => [JSON.stringify(k), v]);
+        }
+        return serialized;
+    };
+
+    const serializeVaultColumnsMap = (vaultColumns: TableVaultColumnDataMap) => {
+        const serialized: Record<string, Column[]> = {};
+        for (const [vaultId, columnMap] of vaultColumns.entries()) {
+            serialized[vaultId] = Array.from(columnMap.values());
+        }
+        return serialized;
+    };
+
+
     const bootstrap = async () => {
         if (!db.current) throw new Error("DB not initialized");
 
@@ -94,10 +111,30 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
             req.onsuccess = () => res(req.result as DataVaultColumn[]);
             req.onerror = () => rej("Failed to list vaults");
         });
+
         if (allVaults.length > 0) {
-            const vaultData: DataVaultColumn = allVaults[0];
-            setVaultsData(vaultData.vaultDataMap);
-            setVaultsColumns(vaultData.tableVaultColumnDataMap);
+            const vaultData = allVaults[0];
+            const reconstructedVaultDataMap: VaultDataMap = new Map();
+            const reconstructedVaultColumnsMap: TableVaultColumnDataMap = new Map();
+
+            for (const [vaultId, entries] of Object.entries(vaultData.vaultDataMap)) {
+                const rowMap = new Map<TableCoordinates, string>();
+                for (const [keyJSON, value] of entries as [string, string][]) {
+                    const key: TableCoordinates = JSON.parse(keyJSON);
+                    rowMap.set(key, value);
+                }
+                reconstructedVaultDataMap.set(vaultId, rowMap);
+            }
+            for (const [vaultId, colArray] of Object.entries(vaultData.tableVaultColumnDataMap)) {
+                const colMap = new Map<string, Column>();
+                for (const col of colArray as Column[]) {
+                    colMap.set(col.id, col);
+                }
+                reconstructedVaultColumnsMap.set(vaultId, colMap);
+            }
+            setVaultsData(reconstructedVaultDataMap);
+            setVaultsColumns(reconstructedVaultColumnsMap);
+            setSyncedWithStable(true);
         } else {
             if (!currentProfile || !currentProfile.icpPublicKey) {
                 console.error("No current profile or ICP public address found");
@@ -153,8 +190,12 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         if (!db.current) throw new Error("DB not initialized");
         const tx = db.current.transaction(VAULTS_STORE_VAULTS, "readwrite");
         const store = tx.objectStore(VAULTS_STORE_VAULTS);
-        const storedData: DataVaultColumn = { vaultDataMap: vaultData, tableVaultColumnDataMap: vaultColumns };
-        store.put({all_vaults: "all_vaults", ...storedData});
+        const storedData = {
+            all_vaults: "all_vaults",
+            vaultDataMap: serializeVaultDataMap(vaultData),
+            tableVaultColumnDataMap: serializeVaultColumnsMap(vaultColumns),
+        };
+        store.put(storedData);
     }
 
     const contextValue: VaultProviderContext = {

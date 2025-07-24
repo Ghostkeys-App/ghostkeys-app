@@ -36,24 +36,15 @@ export default function ManageVault() {
         temp.set(currentVault.icpPublicAddress, tempColumns);
         setAllVaultsData(vaultsData, temp);
       }
-      if (!tempVaultData) {
-        tempVaultData = new Map();
-        tempVaultData.set({ columnId: "1", rowId: 1 }, "");
-        tempVaultData.set({ columnId: "2", rowId: 1 }, "");
-        tempVaultData.set({ columnId: "1", rowId: 2 }, "");
-        tempVaultData.set({ columnId: "2", rowId: 2 }, "");
-        const temp = new Map(vaultsData);
-        temp.set(currentVault.icpPublicAddress, tempVaultData);
-        setAllVaultsData(temp, vaultsColumns);
-      }
-      setVaultData(tempVaultData);
+
+      setVaultData(tempVaultData || new Map());
       setColumnData(tempColumns);
       setDataLoaded(true);
     };
 
     loadVaultData();
     setLoading(false);
-  }, [currentVault, navigate]);
+  }, [currentVault, navigate, vaultsData, vaultsColumns]);
 
   const setVaultDataHandler = (newData: TableVaultData) => {
     setVaultData(newData);

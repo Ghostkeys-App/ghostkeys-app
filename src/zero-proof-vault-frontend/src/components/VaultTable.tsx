@@ -1,9 +1,9 @@
-import React, { useState } from "react";
-import VaultCell from "./VaultCell";
+import React, { useEffect, useState } from "react";
 import setSecretIcon from "../../public/setSecret.svg";
 import unsetSecretIcon from "../../public/unSetSecret.svg";
 import minusIcon from "../../public/minus.svg";
 import { Column, TableVaultData, VaultColumns } from "../utility/vault-provider";
+import VaultRow from "./VaultRow";
 
 
 interface VaultTableProps {
@@ -20,18 +20,10 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
     const [editingColIndex, setEditingColIndex] = useState<number | null>(null);
     const [{ colIndex, colNewName }, setColName] = useState<{ colIndex: number, colNewName: string }>({ colIndex: -1, colNewName: "" });
 
-    // const handleUpdate = (index: number, key: string, value: string) => {
-    //     setTableVaultData((prev) => {
-    //         const updated = new Map(prev);
-    //         updated.set({ columnId: key, rowId: index }, value);
-    //         return updated;
-    //     });
-    // };
-
     const handleUpdate = (rowId: number, columnId: string, value: string) => {
         const updated = new Map(tableVaultData);
         updated.set({ columnId, rowId }, value);
-        setTableVaultData(updated)
+        setTableVaultData(updated);
     };
 
     const handleAddColumn = () => {
@@ -61,11 +53,22 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
         setColumnsVaultData(updated);
     }
 
-    const handleDeleteRow = (rowId: number) => {
-        const coordinatesToDelete = Array.from(tableVaultData.keys()).filter(key => key.rowId === rowId);
-        coordinatesToDelete.forEach(key => tableVaultData.delete(key));
-        setTableVaultData(new Map(tableVaultData)); // trigger re-render
+    const handleDeleteRow = (rowIdToDelete: number) => {
+        const updatedMap: TableVaultData = new Map();
+        tableVaultData.forEach((value, key) => {
+            const { columnId, rowId } = key;
+            if (rowId === rowIdToDelete) {
+                return;
+            }
+            if (rowId > rowIdToDelete) {
+                updatedMap.set({ columnId, rowId: rowId - 1 }, value);
+            } else {
+                updatedMap.set(key, value);
+            }
+        });
+        setTableVaultData(updatedMap);
     };
+
 
     const toggleColumnSecret = (index: number, hiddenVal: boolean) => {
         const updated = columnsVaultData.get(index.toString());
@@ -91,21 +94,34 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
     // Highly inneficient
     const getRowsGrouped = () => {
         const rowsGrouped: Record<number, Record<string, string>> = {};
-        let lastRowNumber = 1;
+
+        let maxRowId = 0;
+
+        // Group real rows
         tableVaultData.forEach((value, { columnId, rowId }) => {
             if (!rowsGrouped[rowId]) rowsGrouped[rowId] = {};
             rowsGrouped[rowId][columnId] = value;
-            lastRowNumber = rowId;
+            if (rowId > maxRowId) maxRowId = rowId;
         });
-        for (let _ = 0; _ < 2; _++) {
-            lastRowNumber++;
-            for (let i = 1; i <= columnsVaultData.size; i++) {
-                if (!rowsGrouped[lastRowNumber]) rowsGrouped[lastRowNumber] = {};
-                rowsGrouped[lastRowNumber][i] = '';
+
+        // Remove truly empty rows (if any were left by mistake)
+        Object.entries(rowsGrouped).forEach(([rowIdStr, row]) => {
+            const hasData = Object.values(row).some((val) => val.trim() !== "");
+            if (!hasData) delete rowsGrouped[parseInt(rowIdStr)];
+        });
+
+        // Add 2 empty rows at the end
+        let newId = maxRowId + 1;
+        for (let i = 0; i < 2; i++, newId++) {
+            rowsGrouped[newId] = {};
+            for (const col of columnsVaultData.values()) {
+                rowsGrouped[newId][col.id] = "";
             }
         }
-        return { rowsGrouped, lastRowNumber };
-    }
+
+        return { rowsGrouped };
+    };
+
 
     return (
         <div className="editor">
@@ -158,28 +174,17 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
 
                 <tbody>
                     {(() => {
-                        const { rowsGrouped, lastRowNumber } = getRowsGrouped();
+                        const { rowsGrouped } = getRowsGrouped();
                         return Object.entries(rowsGrouped).map(([rowIdStr, row]) => {
                             const rowId = parseInt(rowIdStr);
-                            const isExtra = rowId >= lastRowNumber;
-
                             return (
-                                <tr key={rowId} className={isExtra ? "extra-row" : ""}>
-                                    <td className="row-control" onClick={() => !isExtra ? handleDeleteRow(rowId) : null}>
-                                        {!isExtra && (
-                                            <span className="remove-row">─</span>
-                                        )}
-                                    </td>
-                                    {Array.from(columnsVaultData.values()).map((col) => (
-                                        <td key={col.id} className="vault-cell">
-                                            <VaultCell
-                                                type={col.hidden ? "password" : "text"}
-                                                value={row[col.name] || ""}
-                                                onChange={(val) => handleUpdate(rowId, col.name, val)}
-                                            />
-                                        </td>
-                                    ))}
-                                </tr>
+                                <VaultRow
+                                    rowId={rowId}
+                                    row={row}
+                                    columnsVaultData={columnsVaultData}
+                                    handleDeleteRow={handleDeleteRow}
+                                    handleUpdate={handleUpdate}
+                                />
                             );
                         })
                     })()
