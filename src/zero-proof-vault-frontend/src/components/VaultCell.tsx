@@ -26,8 +26,8 @@ export default function VaultCell({ type, value, onChange }: VaultCellProps) {
     <div className="vault-cell-wrapper">
       <input
         type={isSecret && !revealed ? "password" : "text"}
-        value={value}
-        onChange={(e) => handleChange(e.target.value)}
+        defaultValue={value}
+        onBlur={(e) => handleChange(e.target.value)}
         className="vault-input"
       />
       {isSecret && hasData && (

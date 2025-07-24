@@ -104,8 +104,6 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
                 rowsGrouped[lastRowNumber][i] = '';
             }
         }
-        console.log(lastRowNumber);
-        console.log(rowsGrouped);
         return { rowsGrouped, lastRowNumber };
     }
 
