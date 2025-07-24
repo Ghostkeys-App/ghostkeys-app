@@ -18,7 +18,7 @@ let nextColumnIndex = 1;
 
 export default function VaultTable({ tableVaultData, setTableVaultData, columnsVaultData, setColumnsVaultData }: VaultTableProps) {
     const [editingColIndex, setEditingColIndex] = useState<number | null>(null);
-    const [{ colIndex, colNewName }, setColName] = useState<{ colIndex: number, colNewName: string }>({ colIndex: -1, colNewName: "" });
+    const [draftName, setDraftName] = useState<string>("");
     const [innerTableVaultData, setInnerTableVaultData] = useState(tableVaultData);
 
     const rows = buildRows(innerTableVaultData, columnsVaultData);
@@ -66,28 +66,35 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
     const handleAddColumn = () => {
         const newColumn: Column = { id: (columnsVaultData.size + 1).toString(), name: `New Column ${nextColumnIndex++}`, hidden: false };
         const updated = new Map(columnsVaultData)
-        updated.set(newColumn.name, newColumn);
+        updated.set(newColumn.id, newColumn);
         setColumnsVaultData(updated);
         setEditingColIndex(columnsVaultData.size); // auto start editing
     };
 
-    const editColumnName = (index: number, newName: string) => {
-        setColName({ colIndex: index, colNewName: newName });
-    };
-
-    const handleUpdateColumnName = () => {
-        const { index, newName } = { index: colIndex, newName: colNewName.trim() };
-
-        if (columnsVaultData.has(newName)) {
-            window.alert("Column name is the same, no changes made.");
+    const handleUpdateColumnName = (value: string, columnId: string) => {
+        const trimmed = value.trim();
+        if (!trimmed) {
             setEditingColIndex(null);
             return;
         }
         const updated = new Map(columnsVaultData);
-        const oldName = [...updated.keys()][index];
-        updated.delete(oldName);
-        updated.set(newName, { id: (updated.size + 1).toString(), name: newName, hidden: false });
+        const col = updated.get(columnId);
+        if (col && col.name !== trimmed) {
+            updated.set(columnId, { id: columnId, name: trimmed, hidden: col.hidden });
+        }
+        if (!col) {
+            updated.set(columnId, { id: columnId, name: trimmed, hidden: false });
+        }
+        console.log(updated);
+        console.log(columnsVaultData);
         setColumnsVaultData(updated);
+        setEditingColIndex(null);
+
+        // const updated = new Map(columnsVaultData);
+        // const oldName = [...updated.keys()][index];
+        // updated.delete(oldName);
+        // updated.set(newName, { id: (updated.size + 1).toString(), name: newName, hidden: false });
+        // setColumnsVaultData(updated);
     }
 
 
@@ -111,6 +118,8 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
         setColumnsVaultData(new Map(columnsVaultData));
         setTableVaultData(new Map(tableVaultData)); // trigger re-render
         setEditingColIndex(null);
+        // This is bad... however for now is fine. Persistence is taken care with context and indexedDB - solid result for now
+        setTimeout(() => window.location.reload(), 100);
     };
 
     // Highly inneficient
@@ -153,18 +162,14 @@ export default function VaultTable({ tableVaultData, setTableVaultData, columnsV
                                     {editingColIndex === idx ? (
                                         <input
                                             autoFocus
-                                            value={col.name}
-                                            onChange={(e) => editColumnName(idx, e.target.value)}
-                                            onBlur={() => setEditingColIndex(null)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter") {
-                                                    handleUpdateColumnName();
-                                                    setEditingColIndex(null);
-                                                }
-                                            }}
+                                            defaultValue={col.name}
+                                            onChange={(e) => setDraftName(e.target.value)}
+                                            onBlur={(e) => handleUpdateColumnName(e.target.value, col.id)}
                                         />
                                     ) : (
-                                        <span onDoubleClick={() => setEditingColIndex(idx)}>{col.name}</span>
+                                        <span onDoubleClick={() => {
+                                            setEditingColIndex(idx); setDraftName(col.name);
+                                        }}>{col.name}</span>
                                     )}
 
                                     <div className="column-icons">
