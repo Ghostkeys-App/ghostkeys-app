@@ -5,9 +5,10 @@ import { useVaultProvider } from "../utility/vault-provider";
 
 interface TopBarProps {
   profile: any;
+  selected: "logins" | "notes" | "payments" | "grid";
 }
 
-export default function TopBar({ profile }: TopBarProps) {
+export default function TopBar({ profile, selected }: TopBarProps) {
   const { currentProfile } = useIdentitySystem();
   const id = currentProfile?.icpPublicKey || "";
   const [showCopied, setShowCopied] = useState(false);
@@ -65,24 +66,45 @@ export default function TopBar({ profile }: TopBarProps) {
     }
   };
 
+  const getTopBarColor = (template: "logins" | "notes" | "payments" | "grid") => {
+    switch (template) {
+      case "logins": {return '#2F3A70'}
+      case "notes": {return '#FFD18D'}
+      case "payments": {return '#EC748F'}
+      case "grid": {return '#704481'}
+    }
+  }
+
   return (
-    <div className="topbar">
+    <div className="topbar" style={{
+      backgroundColor: getTopBarColor(selected),
+      borderColor: selected == 'logins' || selected == 'grid' ? 'var(--light-border-color)' : 'var(--dark-border-color)',
+      color: selected == 'logins' || selected == 'grid' ? 'white' : 'black'
+    }}>
       <div className="header-left">
-        <h1>Ghostkeys</h1>
+        <div className="logo-container">
+          <img src={selected == 'logins' || selected == 'grid' ? '/white-logo.png' : '/black-logo.png'} alt={'logo'}
+               className={'logo'}></img>
+        </div>
         <div className="profile">
-          <div className="profile-icon"></div>
+          <img src={selected == 'logins' || selected == 'grid' ? '/ghost-white.png' : '/ghost-black.png'} alt={'logo'}
+               className={'profile-icon'}></img>
           {profile?.nickname || "Anon"}
           {id && (
-            <div
-              className={`copy-box ${showCopied ? 'copied' : ''}`}
-              onClick={copyToClipboard}
-              title={`Click to copy full ID: ${id}`}
-            >
-              {showCopied ? "Copied ✓" : shortenId(id)}
-            </div>
+              <div
+                  className={`copy-box ${showCopied ? 'copied' : ''}`}
+                  onClick={copyToClipboard}
+                  title={`Click to copy full ID: ${id}`}
+                  style={{
+                    borderColor: selected == 'logins' || selected == 'grid' ? 'var(--light-border-color)' : 'var(--dark-border-color)',
+                  }}
+              >
+                {showCopied ? "Copied ✓" : shortenId(id)}
+              </div>
           )}
         </div>
       </div>
+
       <div className="toolbar">
         <button onClick={exportToFile}>📤 Export</button>
         <button onClick={saveToChain}>🔐 Save</button>

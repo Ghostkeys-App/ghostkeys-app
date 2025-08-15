@@ -80,7 +80,7 @@ export default function ManageVault() {
 
   return (
     <div className="vault-app">
-      <TopBar profile={currentProfile} />
+      <TopBar profile={currentProfile} selected={'logins'}/>
       <div className="vault-layout">
         <Sidebar />
         <VaultTable
