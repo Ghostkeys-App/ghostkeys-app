@@ -5,12 +5,6 @@ import { IdentitySystemProvider } from './utility/identity';
 import { VaultContextProvider } from './utility/vault-provider';
 import './index.scss';
 
-const savedTheme = localStorage.getItem("theme");
-if (savedTheme === "dark") {
-  document.body.classList.add("dark");
-}
-
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <>
     <IdentitySystemProvider>

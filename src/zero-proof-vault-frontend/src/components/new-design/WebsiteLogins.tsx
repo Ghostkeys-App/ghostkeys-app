@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Search, Copy, Edit2, Trash2, MoreVertical, Globe } from "lucide-react";
+import { Copy, Edit2, Trash2, MoreVertical, Globe } from "lucide-react";
 import funnyGhostIcon from "../../../public/funny-ghost.svg";
 
 // Self-contained Website Logins view (no external props). Uses plain CSS classes
@@ -95,8 +95,6 @@ export default function WebsiteLogins(): JSX.Element {
 
   return (
       <section className="website-logins">
-        <div className="website-logins-bg" />
-
         {/* Header */}
         <div className="website-logins-header">
           <div className={'title-and-button'}>

@@ -484,6 +484,7 @@ td.vault-cell {
     border: 1px solid var(--copy-box-border);
     transition: all 0.2s ease;
     margin-left: 0.3rem;
+    border-color: var(--light-border-color);
 
     &.copied {
       background: var(--copy-box-success-bg);
@@ -550,10 +551,11 @@ input, button {
   display: flex;
   flex-direction: column;
   padding: 18px;
-  background: linear-gradient(180deg, #111827, #1f2937); /* fallback */
+  background: linear-gradient(180deg, #2F3A70, #3e4a86);
   transition: background 300ms ease, box-shadow 300ms ease;
   box-shadow: var(--gk-shadow);
   height: 100%;
+  color: white;
 }
 
 .gk-nav { display: flex; flex-direction: column; gap: var(--gk-gap); }
@@ -569,6 +571,7 @@ input, button {
   color: inherit;
   cursor: pointer;
   backdrop-filter: saturate(120%) blur(1px);
+  box-shadow: 0 10px 24px rgba(0,0,0,.18);
   -webkit-tap-highlight-color: transparent;
   transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
@@ -586,30 +589,30 @@ input, button {
 .gk-label { font: 500 15px/1.25 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; letter-spacing: .2px; }
 .gk-chevron { margin-left: auto; width: 16px; height: 16px; opacity: .7; transition: transform 150ms ease, opacity 150ms ease; }
 .gk-item:hover .gk-chevron { transform: translateX(2px); opacity: .95; }
-
-/* Website logins – blue */
-.gk-sidebar:has(.gk-item[data-key="logins"][aria-current="page"]),
-.header[data-key="logins"] {
-  background: linear-gradient(180deg, #2F3A70, #3e4a86);
-}
-
-/* Secure notes – amber */
-.gk-sidebar:has(.gk-item[data-key="notes"][aria-current="page"]),
-.header[data-key="notes"] {
-  background: linear-gradient(180deg, #FFD18D, #f5c076);
-}
-
-/* Payment details – orange/pink */
-.gk-sidebar:has(.gk-item[data-key="payments"][aria-current="page"]),
-.header[data-key="payments"] {
-  background: linear-gradient(180deg, #EC748F, #d86580);
-}
-
-/* Flexible grid – purple */
-.gk-sidebar:has(.gk-item[data-key="grid"][aria-current="page"]),
-.header[data-key="grid"] {
-  background: linear-gradient(180deg, #704481, #5f3b6f);
-}
+//
+///* Website logins – blue */
+//.gk-sidebar:has(.gk-item[data-key="logins"][aria-current="page"]),
+//.header[data-key="logins"] {
+//  background: linear-gradient(180deg, #2F3A70, #3e4a86);
+//}
+//
+///* Secure notes – amber */
+//.gk-sidebar:has(.gk-item[data-key="notes"][aria-current="page"]),
+//.header[data-key="notes"] {
+//  background: linear-gradient(180deg, #FFD18D, #f5c076);
+//}
+//
+///* Payment details – orange/pink */
+//.gk-sidebar:has(.gk-item[data-key="payments"][aria-current="page"]),
+//.header[data-key="payments"] {
+//  background: linear-gradient(180deg, #EC748F, #d86580);
+//}
+//
+///* Flexible grid – purple */
+//.gk-sidebar:has(.gk-item[data-key="grid"][aria-current="page"]),
+//.header[data-key="grid"] {
+//  background: linear-gradient(180deg, #704481, #5f3b6f);
+//}
 
 /* ---------- Reduced-motion friendliness ---------- */
 @media (prefers-reduced-motion: reduce) {
@@ -649,7 +652,7 @@ input, button {
 }
 
 /* The whole look lives on this one element + its pseudo-layers */
-.website-logins-bg {
+.main-bg {
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -664,7 +667,7 @@ input, button {
 }
 
 /* Corner glow “orbs” (top-right / bottom-left) */
-.website-logins-bg::before {
+.main-bg::before {
   content: "";
   position: absolute;
   inset: -10% -6% -12% -8%; /* extend slightly beyond edges to avoid clipping */
@@ -683,7 +686,7 @@ input, button {
 }
 
 /* Star/particle layer (very subtle twinkle) */
-.website-logins-bg::after {
+.main-bg::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1082,3 +1085,279 @@ input, button {
   transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
 }
 .gk-vault-new:hover { transform: translateY(-1px); filter: saturate(1.1); }
+
+
+
+
+
+
+
+
+// SECURITY NOTES
+/* Security Notes Page */
+
+.security-notes {
+  position: relative;
+  flex: 1;
+  padding-top: 22px;
+  overflow: auto;
+  color: #fff;
+}
+
+.security-notes-header {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-items: center;
+  padding: 16px 24px;
+  margin-bottom: 24px;
+
+  .title-and-button{
+    display: flex;
+    align-items: center;
+    width: 100%;
+
+    .ghost-icon{
+      width: 50px;
+      margin-right: 12px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: white;
+      margin: 0;
+    }
+  }
+}
+
+//.security-notes-header {
+//  position: relative;
+//  z-index: 1;
+//  display: flex;
+//  justify-content: space-between;
+//  align-items: center;
+//  margin-bottom: 24px;
+//}
+//
+//.security-notes-header h1 {
+//  font-size: 22px;
+//  font-weight: 600;
+//  display: flex;
+//  align-items: center;
+//  gap: 8px;
+//}
+
+.security-notes-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  font-weight: 500;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 15px rgba(37,99,235,0.35);
+}
+
+.security-notes-add:hover {
+  background: linear-gradient(135deg, #1e4ed8, #2563eb);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37,99,235,0.5);
+}
+
+/* Notes Grid */
+.notes-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+  padding: 24px;
+}
+
+/* Individual Sticky Note (glass style) */
+.note-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 16px;
+  color: #fff;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  backdrop-filter: blur(12px);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.note-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+}
+
+.note-card textarea {
+  background: transparent;
+  border: none;
+  resize: none;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.4;
+  flex: 1;
+  outline: none;
+}
+
+.note-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.note-btn {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.note-btn:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+/* Floating pin badge for pinned notes (board view) */
+.note-pin-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+
+  display: grid;
+  place-items: center;
+
+  color: #fff;
+  /* glass chip with blue glow */
+  background: linear-gradient(135deg, rgba(59,130,246,.8), rgba(37,99,235,.8));
+  box-shadow:
+          0 8px 20px rgba(37,99,235,.45),
+          inset 0 1px 0 rgba(255,255,255,.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+
+  border: 1px solid rgba(255,255,255,.28);
+  animation: pin-pop .3s ease-out;
+}
+
+@keyframes pin-pop {
+  from { transform: scale(.85); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+
+
+
+
+
+
+
+// SPREADSHEETS
+/* Cinematic blue wrapper (matches Website Logins) */
+.sheet {
+  position: relative;
+  height: 100%;
+  color: #fff;
+  padding-top: 22px;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Header / toolbar */
+.sheet-header {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-items: center;
+  padding: 16px 24px;
+  margin-bottom: 24px;
+
+  .title-and-button{
+    display: flex;
+    align-items: center;
+    width: 100%;
+
+    .ghost-icon{
+      width: 50px;
+      margin-right: 12px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: white;
+      margin: 0;
+    }
+  }
+}
+.gk-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font: 500 14px/1.2 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  padding: 10px 16px; border-radius: 12px; border: none; cursor: pointer; color: #fff;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.12);
+  transition: background .2s ease, box-shadow .2s ease, transform .15s ease;
+}
+.gk-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.3), inset 0 0 0 1px rgba(255,255,255,.18); }
+.gk-btn-add    { background: linear-gradient(135deg, #4f8df7, #3571e5); }
+.gk-btn-export { background: linear-gradient(135deg, #f97316, #ea580c); }
+
+/* Scroll host + canvas */
+.sheet-host {
+  position: relative;
+  height: calc(100% - 68px); /* header height */
+  overflow: auto;
+  outline: none;
+  /* perf hint */
+  will-change: scroll-position;
+}
+/* Spacer makes native scrollbars reflect full sheet size */
+.sheet-host > div:first-child {
+  width: 2000px;  /* will be updated in JS */
+  height: 1000px; /* will be updated in JS */
+}
+
+/* Canvas sits on top, tracks the viewport only */
+.sheet-canvas {
+  position: absolute;   /* keeps it pinned to the host's top/left */
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  will-change: transform; /* for the JS fallback below */
+}
+
+/* Editor overlay (single input) */
+.cell-editor {
+  position: absolute;
+  border: 1px solid #3a4a86;
+  background: #0f173a;
+  color: #fff;
+  outline: none;
+  padding: 6px 8px;
+  border-radius: 6px;
+  z-index: 2;
+}
+
+/* Column header editor variant */
+.col-editor {
+  background: #1c2754;
+  border-color: #2a3872;
+  font-weight: 600;
+  text-align: left;
+}
