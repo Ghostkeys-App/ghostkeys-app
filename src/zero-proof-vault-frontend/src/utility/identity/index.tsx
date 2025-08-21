@@ -22,10 +22,9 @@ import {
 } from "./constants";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
 import { Principal } from "@dfinity/principal";
-import { mnemonicToAccount } from "viem/accounts";
 import { mnemonicToSeedSync } from "@scure/bip39";
-import { generate } from "random-words";
 import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
+import { derivePrincipalFromSeed, generateSeedAndPrincipal } from "../crypto/encdcrpt";
 
 // Interfaces for Vault and User Profile
 export type Vault = {
@@ -38,13 +37,11 @@ export type Vault = {
 export type UserProfile = {
   userID: string;
   icpPublicAddress: string;
-  evmPublicAddress: string;
   seedPhrase: string;
 };
 
 export type AuthProfile = {
   icpPublicKey: string;
-  evmPublicKey: string;
   userID: string;
   slug: string;
   icpAccount: {
@@ -108,8 +105,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
       const profile = await createProfileFromSeed(seed);
       await switchProfile(profile);
     } else {
-      const generated = (generate(12) as string[]).join(" ");
-      const profile = await createProfileFromSeed(generated);
+      const profile = await createProfileFromSeed();
       await saveProfile(profile);
       await switchProfile(profile);
       overwriteLocalStorage(profile);
@@ -118,25 +114,16 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
 
   const overwriteLocalStorage = (profile: UserProfile) => {
     localStorage.setItem(LOCAL_STORAGE_SEED_PHRASE, profile.seedPhrase);
-    localStorage.setItem(LOCAL_STORAGE_EVM_PUBLIC_ADDRESS, profile.evmPublicAddress);
     localStorage.setItem(LOCAL_STORAGE_ICP_PUBLIC_ADDRESS, profile.icpPublicAddress);
   };
 
-  const getPrincipalFromSeed = async (seed: string): Promise<Principal> => {
-    const derivedKey = await deriveEd25519KeyFromSeed(mnemonicToSeedSync(seed));
-    const identity = Ed25519KeyIdentity.fromSecretKey(derivedKey);
-    const principal = identity.getPrincipal();
-    return principal;
-  }
 
-  const createProfileFromSeed = useCallback(async (seed: string): Promise<UserProfile> => {
-    const evm = mnemonicToAccount(seed);
-    const principal = (await getPrincipalFromSeed(seed)).toString();
+  const createProfileFromSeed = useCallback(async (existingSeed?: string): Promise<UserProfile> => {
+    const { seed, principal } = existingSeed ? { seed: existingSeed, principal: await derivePrincipalFromSeed(existingSeed) } : await generateSeedAndPrincipal();
 
     return {
-      userID: `UserID_${principal}`,
-      icpPublicAddress: principal,
-      evmPublicAddress: evm.address,
+      userID: `UserID_${principal.toString()}`,
+      icpPublicAddress: principal.toString(),
       seedPhrase: seed,
     };
   }, []);
@@ -154,7 +141,6 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
 
     setCurrentProfile({
       icpPublicKey: profile.icpPublicAddress,
-      evmPublicKey: profile.evmPublicAddress,
       userID: profile.userID,
       slug: shortenAddress(profile.icpPublicAddress),
       icpAccount: {
@@ -166,13 +152,13 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
 
   const createVault = async (nickname: string): Promise<Vault> => {
     if (!currentProfile) throw new Error("No profile set");
-    const generated = (generate(12) as string[]).join(" ");
-    const tempIcpPublicAddress = (await getPrincipalFromSeed(generated)).toString();
-    const vaultID = `Vault_${tempIcpPublicAddress}`;
+
+    const { principal } = await generateSeedAndPrincipal();
+    const vaultID = `Vault_${principal.toString()}`;
     const newVault: Vault = {
       vaultID,
       nickname,
-      icpPublicAddress: tempIcpPublicAddress,
+      icpPublicAddress: principal.toString(),
       endpoint: "",
     };
     if (!db.current) throw new Error("DB not initialized");

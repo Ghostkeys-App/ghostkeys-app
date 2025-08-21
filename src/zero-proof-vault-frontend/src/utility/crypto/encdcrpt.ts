@@ -1,13 +1,35 @@
 // vaultCrypto.ts
 import { sha256 } from "@noble/hashes/sha2";
 import { hkdf } from "@noble/hashes/hkdf";
+import { english, generateMnemonic } from 'viem/accounts';
+import { Principal } from "@dfinity/principal";
+import { mnemonicToSeed } from "@scure/bip39";
+import { Ed25519KeyIdentity } from "@dfinity/identity";
 
-// this is to manage message to decrypt ussing derived key from phantom wallet
-// in the future we will utilize multiple wallets for deriving the keys for encryption
-// while allowing the prev to work
+
+/*
+    Module for all encryption-related operations on frontend
+*/
+
+
 const VAULT_KDF_MSG = "vault-key-derivation-v1";
 
-// Derive a key for vault encryption using Phantom wallet signature (Might be used in the future)
+// Derive principal
+export const derivePrincipalFromSeed = async (seed: string): Promise<Principal> => {
+    const keySpecificSeed64 = await mnemonicToSeed(seed);
+    const { key: sk } = derivePath(`m/44'/223'/0'/0'/0'`, keySpecificSeed64); // 32-byte Ed25519 secret
+    const identity = Ed25519KeyIdentity.fromSecretKey(sk);
+    const principal = identity.getPrincipal(); 
+    return principal;
+}
+
+// Generate seed + derive ICP principal from it
+export const generateSeedAndPrincipal = async (): Promise<{ seed: string, principal: Principal }> => {
+    const seed = generateMnemonic(english, 128); // 12 words (128-bit entropy)
+    const principal = await derivePrincipalFromSeed(seed);
+    return { seed, principal };
+};
+
 export const deriveVaultKey = async () => {
     const provider = (window as any).solana;
     const msg = new TextEncoder().encode(VAULT_KDF_MSG);
@@ -70,3 +92,7 @@ export const encryptPasswordBlob = async (password: string, key: Uint8Array) => 
 export const decryptPasswordBlob = async (blob: string, key: Uint8Array) => {
     return aesDecrypt(blob, key);
 };
+
+function derivePath(arg0: string, keySpecificSeed64: Uint8Array<ArrayBufferLike>): { key: any; } {
+    throw new Error("Function not implemented.");
+}
