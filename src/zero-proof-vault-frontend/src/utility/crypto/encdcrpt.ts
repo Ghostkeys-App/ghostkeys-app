@@ -5,18 +5,17 @@ import { english, generateMnemonic } from 'viem/accounts';
 import { Principal } from "@dfinity/principal";
 import { mnemonicToSeed } from "@scure/bip39";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
-
+import { derivePath } from "ed25519-hd-key";
 
 /*
     Module for all encryption-related operations on frontend
 */
 
-
 const VAULT_KDF_MSG = "vault-key-derivation-v1";
 
 // Derive principal
 export const derivePrincipalFromSeed = async (seed: string): Promise<Principal> => {
-    const keySpecificSeed64 = await mnemonicToSeed(seed);
+    const keySpecificSeed64 = (await mnemonicToSeed(seed)).toString();
     const { key: sk } = derivePath(`m/44'/223'/0'/0'/0'`, keySpecificSeed64); // 32-byte Ed25519 secret
     const identity = Ed25519KeyIdentity.fromSecretKey(sk);
     const principal = identity.getPrincipal(); 
@@ -92,7 +91,3 @@ export const encryptPasswordBlob = async (password: string, key: Uint8Array) => 
 export const decryptPasswordBlob = async (blob: string, key: Uint8Array) => {
     return aesDecrypt(blob, key);
 };
-
-function derivePath(arg0: string, keySpecificSeed64: Uint8Array<ArrayBufferLike>): { key: any; } {
-    throw new Error("Function not implemented.");
-}

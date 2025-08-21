@@ -1,34 +1,16 @@
 {
   "canisters": {
-    "internet_identity": {
-      "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",
-      "frontend": {},
-      "remote": {
-        "id": {
-          "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
-        }
-      },
+    "factory-canister-backend": {
+      "candid": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.2.0/factory-canister-backend.did",
       "type": "custom",
-      "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz"
-    },
-    "zero-proof-vault-backend": {
-      "candid": "src/zero-proof-vault-backend/zero-proof-vault-backend.did",
-      "package": "zero-proof-vault-backend",
-      "type": "custom",
-      "shrink": true,
-      "gzip": true,
-      "wasm": "target/wasm32-unknown-unknown/release/zero_proof_vault_backend.wasm",
-      "build": [
-        "cargo build --target wasm32-unknown-unknown --release -p zero-proof-vault-backend --locked",
-        "candid-extractor target/wasm32-unknown-unknown/release/zero_proof_vault_backend.wasm > src/zero-proof-vault-backend/zero-proof-vault-backend.did"
-      ],
-      "post_install": [
-        "dfx canister start zero-proof-vault-backend"
-      ],
+      "wasm": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.2.0/factory_canister_backend.wasm",
       "metadata": [
         {
           "name": "candid:service"
         }
+      ],
+      "post_install": [
+        "dfx generate factory-canister-backend"
       ]
     },
     "zero-proof-vault-frontend": {

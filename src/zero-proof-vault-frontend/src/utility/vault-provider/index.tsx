@@ -185,6 +185,17 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     }
 
     const syncVaultsWithBackend = async () => {
+
+        /**
+         * 1) Check if we currently have derive_vetkd_encrypted_key
+         * 1.1) If yes -> use it
+         * 1.2) If not -> call query endpoint to get existing key
+         * 1.3) If response YES -> use it
+         * 1.4) If response NO -> call update derive_vetkd_encrypted_key endpoint -> use it
+         * 
+         * 2) Generate public key from offline address
+         */
+
         if (!currentProfile) {
             console.error("Cannot sync: no current profile");
             return;
