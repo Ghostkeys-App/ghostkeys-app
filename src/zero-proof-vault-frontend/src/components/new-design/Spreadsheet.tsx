@@ -1,4 +1,6 @@
 import React from "react";
+import { getOrCreateFactoryCanisterActor, getOrCreateSharedCanisterActor } from "../../utility/api";
+import { HttpAgent } from "@dfinity/agent";
 
 type CellKey = string; // "r,c"
 const keyOf = (r: number, c: number): CellKey => `${r},${c}`;
@@ -612,6 +614,19 @@ export default function SpreadsheetCanvas(): JSX.Element {
     scheduleDraw();
   }
 
+  // Testing backend canister | THIS IS ONLY FOR TESTING
+  const makeCallToFactory = async () => {
+    console.log("Testing canister calls");
+    const agent = await HttpAgent.create();
+    const factoryActor = await getOrCreateFactoryCanisterActor("uxrrr-q7777-77774-qaaaq-cai", agent);
+    console.log(factoryActor);
+    const testCreatingSharedCanister = await factoryActor.get_or_create_shared_vault();
+    console.log(testCreatingSharedCanister);
+    const sharedActor = await getOrCreateSharedCanisterActor(testCreatingSharedCanister, agent);
+    const addUserToShared = await sharedActor.add_user(testCreatingSharedCanister);
+    console.log(addUserToShared);
+  }
+
   return (
       <section className="sheet">
         {/* Header / Toolbar */}
@@ -639,7 +654,7 @@ export default function SpreadsheetCanvas(): JSX.Element {
               <button className="gk-btn gk-btn-save" onClick={unhideSelectedCol}>Unhide col</button>
               <button className="gk-btn gk-btn-save" onClick={showAllCols}>Show all</button>
 
-              <button className="gk-btn gk-btn-save">
+              <button className="gk-btn gk-btn-save" onClick={makeCallToFactory}>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/>

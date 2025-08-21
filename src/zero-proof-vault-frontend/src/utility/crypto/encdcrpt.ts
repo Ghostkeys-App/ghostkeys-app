@@ -5,7 +5,6 @@ import { english, generateMnemonic } from 'viem/accounts';
 import { Principal } from "@dfinity/principal";
 import { mnemonicToSeed } from "@scure/bip39";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
-import { derivePath } from "ed25519-hd-key";
 
 /*
     Module for all encryption-related operations on frontend
@@ -15,10 +14,12 @@ const VAULT_KDF_MSG = "vault-key-derivation-v1";
 
 // Derive principal
 export const derivePrincipalFromSeed = async (seed: string): Promise<Principal> => {
-    const keySpecificSeed64 = (await mnemonicToSeed(seed)).toString();
-    const { key: sk } = derivePath(`m/44'/223'/0'/0'/0'`, keySpecificSeed64); // 32-byte Ed25519 secret
-    const identity = Ed25519KeyIdentity.fromSecretKey(sk);
-    const principal = identity.getPrincipal(); 
+    const keySpecificSeed64 = await mnemonicToSeed(seed);
+    // TODO: How to derive key from specific path
+    // const { key: sk } = derivePath(`m/44'/223'/0'/0'/0'`, keySpecificSeed64); // 32-byte Ed25519 secret
+    const sk = hkdf(sha256, keySpecificSeed64, undefined, undefined, 32);
+    const identity = Ed25519KeyIdentity.fromSecretKey(new Uint8Array(sk).buffer);
+    const principal = identity.getPrincipal();
     return principal;
 }
 
