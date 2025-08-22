@@ -97,7 +97,8 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const bootstrap = async () => {
-    const seed = localStorage.getItem(LOCAL_STORAGE_SEED_PHRASE);
+    const seed: string | undefined = await getSeedPhrase();
+
     if (seed) {
       const profile = await createProfileFromSeed(seed);
       await switchProfile(profile);
@@ -105,14 +106,19 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
       const profile = await createProfileFromSeed();
       await saveProfile(profile);
       await switchProfile(profile);
-      overwriteLocalStorage(profile);
     }
   };
 
-  const overwriteLocalStorage = (profile: UserProfile) => {
-    localStorage.setItem(LOCAL_STORAGE_SEED_PHRASE, profile.seedPhrase);
-    localStorage.setItem(LOCAL_STORAGE_ICP_PUBLIC_ADDRESS, profile.icpPublicAddress);
-  };
+  const getSeedPhrase = async () => {
+    if (!db.current) throw new Error("DB not initialized");
+    const tx = db.current.transaction(PROFILES_STORE, "readwrite");
+
+    return new Promise<string | undefined>((resolve, reject) => {
+      const req = tx.objectStore(PROFILES_STORE).getAll();
+      req.onsuccess = () => resolve(req.result?.[0]?.seedPhrase);
+      req.onerror = () => reject(req.error);
+    });
+  }
 
 
   const createProfileFromSeed = useCallback(async (existingSeed?: string): Promise<UserProfile> => {
@@ -179,7 +185,6 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
 
   const switchVault = (vault: Vault) => {
     setCurrentVault(vault);
-    localStorage.setItem(LOCAL_STORAGE_ORGANIZATION_VAULT_ID, vault.vaultID);
   };
 
   const listVaults = async (): Promise<Vault[]> => {
