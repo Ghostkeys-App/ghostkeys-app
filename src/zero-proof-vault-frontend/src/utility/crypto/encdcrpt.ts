@@ -13,27 +13,27 @@ import { deriveSlip10Ed25519 } from "./SLIP‑0010";
 const VAULT_KDF_MSG = "vault-key-derivation-v1";
 
 // Derive principal
-export const derivePrincipalFromSeed = async (seed: string): Promise<Principal> => {
+export const derivePrincipalAndIdentityFromSeed = async (seed: string): Promise<{ identity: Ed25519KeyIdentity, principal: Principal }> => {
     const keySpecificSeed64 = await mnemonicToSeed(seed);
     const secret = deriveSlip10Ed25519(keySpecificSeed64, "m/44'/223'/0'/0'/0'");
     const identity = Ed25519KeyIdentity.fromSecretKey(secret.buffer);
     const principal = identity.getPrincipal();
-    return principal;
+    return { identity, principal };
 }
 
 // Generate seed + derive ICP principal from it
-export const generateSeedAndPrincipal = async (): Promise<{ seed: string, principal: Principal }> => {
+export const generateSeedAndIdentityPrincipal = async (): Promise<{ seed: string, identity: Ed25519KeyIdentity, principal: Principal }> => {
     const seed = generateMnemonic(english, 128); // 12 words (128-bit entropy)
-    const principal = await derivePrincipalFromSeed(seed);
-    return { seed, principal };
+    const { identity, principal } = await derivePrincipalAndIdentityFromSeed(seed);
+    return { seed, identity, principal };
 };
 
-export const deriveVaultKey = async () => {
-    const provider = (window as any).solana;
-    const msg = new TextEncoder().encode(VAULT_KDF_MSG);
-    const { signature } = await provider.signMessage(msg, "utf8");
-
-    return hkdf(sha256, signature, msg, msg, 32); // AES key: 32 bytes
+export const deriveSignatureFromPublicKey = async (publicKey: string): Promise<Uint8Array> => {
+    const identity = currentProfile!.icpAccount?.identity;
+    const signature = await identity!.sign(new TextEncoder().encode(publicKey));
+    const keyMaterial = await crypto.subtle.digest("SHA-256", signature);
+    const derivedKey = new Uint8Array(keyMaterial).slice(0, 32);
+    return derivedKey;
 };
 
 const aesEncrypt = async (data: string, key: Uint8Array) => {

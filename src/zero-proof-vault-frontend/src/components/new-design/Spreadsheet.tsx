@@ -3,7 +3,7 @@ import { getOrCreateFactoryCanisterActor, getOrCreateSharedCanisterActor } from 
 import { HttpAgent } from "@dfinity/agent";
 import { ghostkeysStorage } from "../../storage/IDBService.ts";
 import { useIdentitySystem } from "../../utility/identity";
-import { generateSeedAndPrincipal } from "../../utility/crypto/encdcrpt.ts";
+import { generateSeedAndIdentityPrincipal } from "../../utility/crypto/encdcrpt.ts";
 import { VaultData } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 
 type CellKey = string; // "r,c"
@@ -1091,8 +1091,8 @@ export default function SpreadsheetCanvas(): JSX.Element {
     const testCreatingSharedCanister = await factoryActor.get_shared_vault();
     console.log(testCreatingSharedCanister);
     const sharedActor = await getOrCreateSharedCanisterActor(testCreatingSharedCanister, agent);
-    const { principal: userId } = await generateSeedAndPrincipal();
-    const { principal: vaultId } = await generateSeedAndPrincipal();
+    const { principal: userId } = await generateSeedAndIdentityPrincipal();
+    const { principal: vaultId } = await generateSeedAndIdentityPrincipal();
     console.log('user', userId);
     console.log('vault', vaultId);
     const data: VaultData = {

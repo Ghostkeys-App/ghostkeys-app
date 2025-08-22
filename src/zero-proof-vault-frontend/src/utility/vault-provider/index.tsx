@@ -60,7 +60,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     const [syncedWithStable, setSyncedWithStable] = useState(false);
     const [vaultsData, setVaultsData] = useState<VaultDataMap>(new Map());
     const [vaultsColumns, setVaultsColumns] = useState<TableVaultColumnDataMap>(new Map());
-    const { currentProfile, deriveSignatureFromPublicKey } = useIdentitySystem();
+    const { currentProfile } = useIdentitySystem();
 
     useEffect(() => {
         const init = async () => {

@@ -21,7 +21,7 @@ import { Ed25519KeyIdentity } from "@dfinity/identity";
 import { Principal } from "@dfinity/principal";
 import { mnemonicToSeedSync } from "@scure/bip39";
 import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
-import { derivePrincipalFromSeed, generateSeedAndPrincipal } from "../crypto/encdcrpt";
+import { derivePrincipalAndIdentityFromSeed, generateSeedAndIdentityPrincipal } from "../crypto/encdcrpt";
 
 // Interfaces for Vault and User Profile
 export type Vault = {
@@ -33,44 +33,29 @@ export type Vault = {
 
 export type UserProfile = {
   userID: string;
-  icpPublicAddress: string;
   seedPhrase: string;
-};
-
-export type AuthProfile = {
-  icpPublicKey: string;
-  userID: string;
-  slug: string;
-  icpAccount: {
-    identity: Ed25519KeyIdentity;
-    principal: Principal;
-  } | null;
+  identity: Ed25519KeyIdentity;
+  principal: Principal;
 };
 
 export type IdentityContextType = {
   currentVault: Vault | null;
-  currentProfile: AuthProfile | null;
+  currentProfile: UserProfile | null;
   createVault: (nickname: string) => Promise<Vault>;
   switchVault: (vault: Vault) => void;
   renameVault: (vaultID: string, newName: string) => Vault | undefined;
   listVaults: () => Promise<Vault[]>;
   createProfileFromSeed: (seed: string) => Promise<UserProfile>;
   switchProfile: (profile: UserProfile) => Promise<void>;
-  deriveSignatureFromPublicKey: (publicKey: string) => Promise<Uint8Array>;
 };
 
 const IdentityContext = createContext<IdentityContextType | undefined>(undefined);
-
-const deriveEd25519KeyFromSeed = async (seed: Uint8Array): Promise<Uint8Array> => {
-  const hash = await crypto.subtle.digest("SHA-256", seed);
-  return new Uint8Array(hash).slice(0, 32);
-};
 
 export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   const db = useRef<IDBDatabase | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [currentVault, setCurrentVault] = useState<Vault | null>(null);
-  const [currentProfile, setCurrentProfile] = useState<AuthProfile | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -101,11 +86,11 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
 
     if (seed) {
       const profile = await createProfileFromSeed(seed);
-      await switchProfile(profile);
+      setCurrentProfile(profile);
     } else {
       const profile = await createProfileFromSeed();
       await saveProfile(profile);
-      await switchProfile(profile);
+      setCurrentProfile(profile);
     }
   };
 
@@ -122,11 +107,18 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
 
 
   const createProfileFromSeed = useCallback(async (existingSeed?: string): Promise<UserProfile> => {
-    const { seed, principal } = existingSeed ? { seed: existingSeed, principal: await derivePrincipalFromSeed(existingSeed) } : await generateSeedAndPrincipal();
+    let seed, principal, identity;
+    if (existingSeed) {
+      ({ principal, identity } = await derivePrincipalAndIdentityFromSeed(existingSeed));
+      seed = existingSeed;
+    } else {
+      ({ seed, principal, identity } = await generateSeedAndIdentityPrincipal());
+    }
 
     return {
       userID: `UserID_${principal.toString()}`,
-      icpPublicAddress: principal.toString(),
+      principal: principal,
+      identity: identity,
       seedPhrase: seed,
     };
   }, []);
@@ -138,25 +130,13 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   };
 
   const switchProfile = async (profile: UserProfile) => {
-    const derivedKey = await deriveEd25519KeyFromSeed(mnemonicToSeedSync(profile.seedPhrase));
-    const identity = Ed25519KeyIdentity.fromSecretKey(derivedKey);
-    const principal = identity.getPrincipal();
-
-    setCurrentProfile({
-      icpPublicKey: profile.icpPublicAddress,
-      userID: profile.userID,
-      slug: shortenAddress(profile.icpPublicAddress),
-      icpAccount: {
-        identity,
-        principal,
-      },
-    });
+    setCurrentProfile(profile);
   };
 
   const createVault = async (nickname: string): Promise<Vault> => {
     if (!currentProfile) throw new Error("No profile set");
 
-    const { principal } = await generateSeedAndPrincipal();
+    const { principal } = await generateSeedAndIdentityPrincipal();
     const vaultID = `Vault_${principal.toString()}`;
     const newVault: Vault = {
       vaultID,
@@ -197,14 +177,6 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const deriveSignatureFromPublicKey = async (publicKey: string): Promise<Uint8Array> => {
-    const identity = currentProfile!.icpAccount?.identity;
-    const signature = await identity!.sign(new TextEncoder().encode(publicKey));
-    const keyMaterial = await crypto.subtle.digest("SHA-256", signature);
-    const derivedKey = new Uint8Array(keyMaterial).slice(0, 32);
-    return derivedKey;
-  };
-
   const contextValue: IdentityContextType = {
     currentVault,
     currentProfile,
@@ -214,7 +186,6 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     listVaults,
     createProfileFromSeed,
     switchProfile,
-    deriveSignatureFromPublicKey,
   };
 
   if (!isReady) return <LoadingAnimation />;
