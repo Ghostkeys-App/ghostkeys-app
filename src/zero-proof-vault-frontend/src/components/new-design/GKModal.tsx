@@ -131,8 +131,8 @@ export default function GKModal({
             ref={dialogRef}
             tabIndex={-1}
             onKeyDown={onKeyDown}
-            onMouseMove={onMouseMove}
-            onMouseLeave={onMouseLeave}
+            // onMouseMove={onMouseMove}
+            // onMouseLeave={onMouseLeave}
         >
           <div className="gk-modal-glow" aria-hidden="true" />
           <header className="gk-modal-header">

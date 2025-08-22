@@ -1110,7 +1110,6 @@ input, button {
   gap: 24px;
   align-items: center;
   padding: 16px 24px;
-  margin-bottom: 24px;
 
   .title-and-button{
     display: flex;
@@ -1453,6 +1452,7 @@ input, button {
 .gk-modal-close:active { transform: translateY(0) scale(.98); }
 
 .gk-modal-body {
+  position: relative;
   margin-top: 14px;
   padding: 14px;
   border-radius: 16px;
@@ -1490,11 +1490,13 @@ input, button {
 .gk-field { display: grid; gap: 6px; }
 .gk-field span { font-size: 13px; opacity: .9; }
 .gk-field input, .gk-field textarea {
+  box-sizing: border-box;
   width: 100%; color: #fff; font-size: 14px;
   border-radius: 10px; border: 1px solid rgba(255,255,255,.14);
   background: rgba(10,18,46,.55);
   padding: 10px 12px; outline: none;
   transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  resize: none;
 }
 .gk-field input:focus, .gk-field textarea:focus {
   border-color: rgba(96,165,250,.6);
@@ -1520,4 +1522,108 @@ input, button {
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .gk-modal-overlay, .gk-modal, .gk-modal-glow, .gk-modal-stars { animation: none; }
+}
+
+/* --- Size switch under search --- */
+.notes-view-switch {
+  margin: 8px 24px 0;
+  display: inline-flex;
+  gap: 8px;
+}
+.notes-size-btn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.08);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: transform .15s ease, background .2s ease, box-shadow .2s ease;
+}
+.notes-size-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,.12); }
+.notes-size-btn.is-active {
+  background: linear-gradient(135deg, #5aa0ff, #3368e8);
+  box-shadow: 0 6px 18px rgba(51,104,232,.35), inset 0 0 0 1px rgba(255,255,255,.28);
+}
+
+/* --- Card size variants --- */
+.notes-grid.notes-size-small .note-card { min-height: 100px; padding: 12px; }
+.notes-grid.notes-size-small .note-title { font-size: 14px; }
+.notes-grid.notes-size-small .note-body  { font-size: 12px; line-height: 1.35; max-height: 6.2em; overflow: auto; }
+
+.notes-grid.notes-size-medium .note-card { min-height: 140px; padding: 16px; } /* your current default */
+.notes-grid.notes-size-medium .note-title { font-size: 15px; }
+.notes-grid.notes-size-medium .note-body  { font-size: 13.5px; line-height: 1.45; max-height: 8em; overflow: auto; }
+
+.notes-grid.notes-size-big .note-card { min-height: 200px; padding: 20px; }
+.notes-grid.notes-size-big .note-title { font-size: 18px; }
+.notes-grid.notes-size-big .note-body  { font-size: 15px; line-height: 1.55; max-height: 12em; overflow: auto}
+
+/* --- Read-only content styles --- */
+.note-title {
+  margin: 0 28px 8px 0; /* make room for pin icon */
+  color: #fff;
+  font-weight: 700;
+}
+.note-body {
+  margin: 0;
+  white-space: pre-wrap;
+  color: rgba(255,255,255,.92);
+}
+
+/* --- Corner pin toggle (replaces pin badge) --- */
+.note-pin-toggle {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 28px; height: 28px;
+  padding: 0;
+  display: grid; place-items: center;
+  border: 0; border-radius: 10px;
+  cursor: pointer;
+  background: rgba(255,255,255,.10);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
+  transition: transform .15s ease, box-shadow .2s ease, background .2s ease, filter .2s ease;
+}
+.note-pin-toggle:hover {
+  padding: 0;
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.16);
+  box-shadow: 0 10px 24px rgba(2,6,23,.35), inset 0 0 0 1px rgba(255,255,255,.22);
+}
+.note-pin-toggle.is-pinned {
+  background: linear-gradient(135deg, rgba(59,130,246,.85), rgba(37,99,235,.85));
+  box-shadow: 0 8px 20px rgba(37,99,235,.45), inset 0 1px 0 rgba(255,255,255,.35);
+}
+
+/* Optional: hide old .note-pin-badge if it still exists somewhere */
+.note-pin-badge { display: none; }
+
+/* Add-site preset chips */
+.gk-site-picker .site-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.preset-chip {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.08);
+  color: #fff;
+  cursor: pointer;
+  transition: transform .15s ease, background .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.preset-chip img { width: 24px; height: 24px; border-radius: 6px; }
+.preset-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.22); }
+.preset-chip.is-active {
+  background: linear-gradient(135deg, #5aa0ff, #3368e8);
+  border-color: transparent;
+  box-shadow: 0 10px 24px rgba(51,104,232,.35), inset 0 1px 0 rgba(255,255,255,.28);
 }

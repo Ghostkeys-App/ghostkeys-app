@@ -1,16 +1,28 @@
 // WebsiteLogins.tsx — entries-only, IDB-backed, no useState for data
 
 import React from "react";
-import { Copy, Edit2, Trash2, Globe, Plus } from "lucide-react";
+import { Copy, Edit2, Trash2, Plus } from "lucide-react";
 import funnyGhostIcon from "../../../public/funny-ghost.svg";
 import { ghostkeysStorage } from "../../storage/IDBService.ts";
 import { useIdentitySystem } from "../../utility/identity";
 import GKFormModal, { GKField } from "./GKFormModal";
+import AddSiteModal from "./AddSiteModal";
 
 type Site = {
   name: string;
   entries: Array<{ login: string; password: string }>;
 };
+
+function siteIconFor(name: string): string | undefined {
+  const n = name.trim().toLowerCase();
+  if (n.includes("google")) return "/google.png";
+  if (n.includes("github")) return "/github.jpeg";
+  if (n === "x" || n.includes("twitter")) return "/twitter.png";
+  if (n.includes("aws")) return "/aws.png";
+  if (n.includes("facebook")) return "/facebook.png";
+  if (n.includes("dropbox")) return "/dropbox.png";
+  return undefined;
+}
 
 export default function WebsiteLogins(): JSX.Element {
   const [openAddSite, setOpenAddSite] = React.useState(false);
@@ -82,15 +94,6 @@ export default function WebsiteLogins(): JSX.Element {
     // depend on tick so recompute after mutations
   }, [q, tick]);
 
-  // ---- Mutations (always mutate modelRef + rerender + save) ----
-  function addSite() {
-    const name = prompt("Website name (e.g. Google)")?.trim();
-    if (!name) return;
-    modelRef.current.sites = [{ name, entries: [] }, ...modelRef.current.sites];
-    rerender();
-    saveWebsiteLoginsToIDB();
-  }
-
   function renameSite(idx: number) {
     const cur = modelRef.current.sites[idx];
     if (!cur) return;
@@ -108,19 +111,6 @@ export default function WebsiteLogins(): JSX.Element {
     if (!cur) return;
     if (!confirm(`Delete “${cur.name}” and all its entries?`)) return;
     const next = modelRef.current.sites.filter((_, i) => i !== idx);
-    modelRef.current.sites = next;
-    rerender();
-    saveWebsiteLoginsToIDB();
-  }
-
-  function addEntry(siteIdx: number) {
-    const login = prompt("Login (e.g. username or email)")?.trim();
-    if (login == null || login === "") return;
-    const password = prompt("Password")?.trim() ?? "";
-    const next = modelRef.current.sites.slice();
-    const site = next[siteIdx];
-    if (!site) return;
-    next[siteIdx] = { ...site, entries: [{ login, password }, ...site.entries] };
     modelRef.current.sites = next;
     rerender();
     saveWebsiteLoginsToIDB();
@@ -206,7 +196,7 @@ export default function WebsiteLogins(): JSX.Element {
                   <img src={funnyGhostIcon} />
                 </div>
                 <h2 style={{ marginBottom: 24 }}>No logins yet</h2>
-                <button className="gk-btn gk-btn-add" onClick={addSite}>
+                <button className="gk-btn gk-btn-add" onClick={() => setOpenAddSite(true)}>
                   <Plus size={16} /> Add site
                 </button>
               </div>
@@ -214,7 +204,11 @@ export default function WebsiteLogins(): JSX.Element {
               filtered.map((site, i) => (
                   <article key={`${site.name}-${i}`} className="login-card" aria-label={`${site.name} logins`}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={faviconBoxStyle}><Globe size={18} /></div>
+                      {siteIconFor(site.name) ? (
+                          <img src={siteIconFor(site.name)} alt="" style={{ height: 40, width: 40, borderRadius: 12 }} />
+                      ) : (
+                          <div style={faviconBoxStyle}><span style={{fontWeight:700}}>{site.name.slice(0,1).toUpperCase()}</span></div>
+                      )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <h3 style={{ margin: 0, color: "#fff", fontSize: 16, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {site.name}
@@ -301,6 +295,16 @@ export default function WebsiteLogins(): JSX.Element {
                 saveWebsiteLoginsToIDB();
               }
               setOpenAddEntryForIdx(null);
+            }}
+        />
+
+        <AddSiteModal
+            open={openAddSite}
+            onClose={() => setOpenAddSite(false)}
+            onCreate={(siteName) => {
+              modelRef.current.sites = [{ name: siteName, entries: [] }, ...modelRef.current.sites];
+              rerender();
+              saveWebsiteLoginsToIDB();
             }}
         />
 
