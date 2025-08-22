@@ -1,9 +1,9 @@
 {
   "canisters": {
     "factory-canister-backend": {
-      "candid": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.3.0/factory-canister-backend.did",
+      "candid": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.4.0/factory-canister-backend.did",
       "type": "custom",
-      "wasm": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.3.0/factory_canister_backend.wasm",
+      "wasm": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.4.0/factory_canister_backend.wasm",
       "metadata": [
         {
           "name": "candid:service"

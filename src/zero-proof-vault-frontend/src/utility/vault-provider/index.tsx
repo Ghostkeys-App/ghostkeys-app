@@ -1,7 +1,6 @@
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
 import { useIdentitySystem } from "../identity";
-import { zero_proof_vault_backend } from "../../../../declarations/zero-proof-vault-backend";
 import { decryptPasswordBlob, encryptPasswordBlob } from "../crypto/encdcrpt";
 
 export type Column = {
@@ -154,34 +153,37 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     };
 
     const getAllVaultsData = async (userIcpPublicAddress: string): Promise<{ vaultTableData: VaultDataMap, vaultColumns: TableVaultColumnDataMap }> => {
-        if (!currentProfile || !currentProfile.icpPublicKey) {
-            throw new Error("No current profile or ICP public address found");
-        }
+        // if (!currentProfile || !currentProfile.icpPublicKey) {
+        //     throw new Error("No current profile or ICP public address found");
+        // }
 
-        const vaults = await zero_proof_vault_backend.get_all_vaults_for_user(userIcpPublicAddress);
-        const vaultDataMap: VaultDataMap = new Map();
-        const vaultDataColumns: TableVaultColumnDataMap = new Map();
+        // const vaults = await zero_proof_vault_backend.get_all_vaults_for_user(userIcpPublicAddress);
+        // const vaultDataMap: VaultDataMap = new Map();
+        // const vaultDataColumns: TableVaultColumnDataMap = new Map();
 
-        vaults.forEach(async ([vaultId, vaultData]) => {
-            const vaultMap: TableVaultData = new Map();
-            const vaultColumns: VaultColumns = new Map();
+        // vaults.forEach(async ([vaultId, vaultData]) => {
+        //     const vaultMap: TableVaultData = new Map();
+        //     const vaultColumns: VaultColumns = new Map();
 
-            const vaultSignature = await deriveSignatureFromPublicKey(vaultId);
-            vaultData.rows.forEach(async (row) => {
-                row.values.forEach(async (value, index) => {
-                    const coordinates: TableCoordinates = { columnId: vaultData.columns[index].id, rowId: parseInt(row.id) };
-                    const decryptedValue = await decryptPasswordBlob(value, vaultSignature);
-                    vaultMap.set(coordinates, decryptedValue);
-                });
-            });
-            vaultData.columns.forEach((col) => {
-                vaultColumns.set(col.id, { id: col.id, name: col.name, hidden: false });
-            });
-            vaultDataMap.set(vaultId, vaultMap);
-            vaultDataColumns.set(vaultId, vaultColumns);
-        });
+        //     const vaultSignature = await deriveSignatureFromPublicKey(vaultId);
+        //     vaultData.rows.forEach(async (row) => {
+        //         row.values.forEach(async (value, index) => {
+        //             const coordinates: TableCoordinates = { columnId: vaultData.columns[index].id, rowId: parseInt(row.id) };
+        //             const decryptedValue = await decryptPasswordBlob(value, vaultSignature);
+        //             vaultMap.set(coordinates, decryptedValue);
+        //         });
+        //     });
+        //     vaultData.columns.forEach((col) => {
+        //         vaultColumns.set(col.id, { id: col.id, name: col.name, hidden: false });
+        //     });
+        //     vaultDataMap.set(vaultId, vaultMap);
+        //     vaultDataColumns.set(vaultId, vaultColumns);
+        // });
 
-        return { vaultTableData: vaultDataMap, vaultColumns: vaultDataColumns };
+        // return { vaultTableData: vaultDataMap, vaultColumns: vaultDataColumns };
+        const vaultTableData: VaultDataMap = new Map();
+        const vaultColumns: TableVaultColumnDataMap = new Map();
+        return {vaultTableData, vaultColumns}
     }
 
     const syncVaultsWithBackend = async () => {
@@ -227,7 +229,6 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
 
             updates.push([currentProfile.icpPublicKey, vaultId, { name: vaultId, columns: columnsArray, rows }]);
         }
-        await zero_proof_vault_backend.apply_config_changes(updates);
     };
 
 
