@@ -1326,6 +1326,7 @@ input, button {
   outline: none;
   /* perf hint */
   will-change: scroll-position;
+  overscroll-behavior: contain; /* prevent parent/page scroll on arrows */
 }
 /* Spacer makes native scrollbars reflect full sheet size */
 .sheet-host > div:first-child {
@@ -1357,7 +1358,166 @@ input, button {
 /* Column header editor variant */
 .col-editor {
   background: #1c2754;
+  position: absolute;
   border-color: #2a3872;
   font-weight: 600;
   text-align: left;
+}
+
+
+/* ===== GK MODAL (No libs) ===== */
+.gk-modal-root { position: relative; z-index: 9999; }
+
+.gk-modal-overlay {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  background:
+          radial-gradient(1200px 800px at 20% 10%, rgba(96,165,250,.16), transparent 60%),
+          radial-gradient(1400px 900px at 80% 90%, rgba(147,197,253,.18), transparent 62%),
+          rgba(6, 11, 32, 0.72);
+  backdrop-filter: blur(10px) saturate(115%);
+  animation: gk-fade-in 220ms ease-out;
+}
+
+.gk-modal-stars {
+  position: fixed; inset: 0; pointer-events: none; opacity: .22;
+  background-image: radial-gradient(rgba(255,255,255,.18) 2px, transparent 1.6px);
+  background-size: 110px 110px;
+  animation: gk-twinkle 18s linear infinite;
+}
+
+.gk-modal {
+  --rx: 0deg; --ry: 0deg;
+  position: relative;
+  width: min(92vw, 720px);
+  transform: perspective(1200px) rotateX(var(--rx)) rotateY(var(--ry)) translateZ(0);
+  border-radius: 20px;
+  padding: 18px 18px 16px;
+  background: linear-gradient(180deg, rgba(26,35,84,.85), rgba(12,18,50,.9));
+  box-shadow: 0 30px 120px rgba(2,6,23,.55), inset 0 0 0 1px rgba(255,255,255,.08);
+  color: #fff;
+  animation: gk-drop 260ms cubic-bezier(.2,.8,.16,1);
+  overflow: hidden; /* <-- important to keep the ring tidy */
+}
+
+.gk-modal.sm { width: min(92vw, 520px); }
+.gk-modal.lg { width: min(92vw, 900px); }
+
+/* Neon ring / sheen */
+.gk-modal-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+
+  /* we draw 2 backgrounds: one for the content (fills inside), one for the ring */
+  background:
+          /* content background to preserve the modal surface under the ring */
+          linear-gradient(180deg, rgba(26,35,84,.85), rgba(12,18,50,.9)) padding-box,
+            /* the ring itself */
+          conic-gradient(
+                          from var(--gk-ring-angle, 180deg),
+                          rgba(96,165,250,.6),
+                          rgba(147,197,253,.35),
+                          rgba(255,255,255,.25),
+                          rgba(96,165,250,.6)
+          ) border-box;
+
+  border: 2px solid transparent;      /* ring thickness */
+  background-clip: padding-box, border-box;
+  /* no animation here by default */
+}
+
+.gk-modal-glow.is-animated {
+  animation: gk-ring-sweep 14s linear infinite;
+}
+
+.gk-modal-header {
+  position: relative;
+  padding: 8px 10px 12px 10px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.gk-modal-header h2 { margin: 0 28px 4px 0; font-size: 20px; font-weight: 700; letter-spacing: .2px; }
+.gk-modal-header p  { margin: 0; opacity: .85; font-size: 13px; }
+
+.gk-modal-close {
+  position: absolute; right: 8px; top: 6px;
+  width: 32px; height: 32px; border-radius: 10px; border: 0;
+  color: #fff; background: rgba(255,255,255,.12);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.gk-modal-close:hover { transform: translateY(-1px); background: rgba(255,255,255,.18); box-shadow: 0 10px 24px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.22); }
+.gk-modal-close:active { transform: translateY(0) scale(.98); }
+
+.gk-modal-body {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.05);
+  box-shadow:
+          inset 0 0 0 1px rgba(255,255,255,.09),
+          0 12px 36px rgba(2,6,23,.28);
+}
+
+/* Footer buttons */
+.gk-modal-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* Buttons (local, no dependency) */
+.gk-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px; padding: 10px 16px; border-radius: 12px; border: 0; cursor: pointer; color: #fff;
+  background: rgba(255,255,255,.10); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 6px 18px rgba(0,0,0,.25);
+  transition: transform .15s ease, box-shadow .2s ease, filter .2s ease, background .2s ease;
+}
+.gk-btn:hover  { transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22), 0 10px 26px rgba(0,0,0,.28); }
+.gk-btn:active { transform: translateY(0) scale(.98); }
+
+.gk-btn.primary {
+  background: linear-gradient(135deg, #5aa0ff, #3368e8);
+}
+.gk-btn.ghost {
+  background: rgba(255,255,255,.10);
+}
+
+/* Form */
+.gk-form { display: grid; gap: 12px; }
+.gk-field { display: grid; gap: 6px; }
+.gk-field span { font-size: 13px; opacity: .9; }
+.gk-field input, .gk-field textarea {
+  width: 100%; color: #fff; font-size: 14px;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,.14);
+  background: rgba(10,18,46,.55);
+  padding: 10px 12px; outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.gk-field input:focus, .gk-field textarea:focus {
+  border-color: rgba(96,165,250,.6);
+  box-shadow: 0 0 0 3px rgba(96,165,250,.25);
+  background: rgba(10,18,46,.7);
+}
+
+/* Animations */
+@keyframes gk-fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes gk-drop {
+  0% { transform: translateY(10px) scale(.98); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes gk-twinkle {
+  0%, 100% { opacity: .18; background-position: 0 0; }
+  50% { opacity: .32; background-position: 60px 40px; }
+}
+@keyframes gk-ring-sweep {
+  0%   { --gk-ring-angle: 0deg; }
+  100% { --gk-ring-angle: 360deg; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .gk-modal-overlay, .gk-modal, .gk-modal-glow, .gk-modal-stars { animation: none; }
 }

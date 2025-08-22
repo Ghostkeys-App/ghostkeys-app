@@ -44,18 +44,11 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-/**
- * Ghostkeys template sidebar
- * - The entire sidebar background color/gradient changes with the selected template
- * - Buttons become translucent and rely on the panel color for selected state
- * - Minimal, keyboard-accessible, and animated
- */
 export default function TemplateSidebar({
                                           selected,
                                           onSelect,
                                           profile,
                                         }: TemplateSidebarProps) {
-  const active = TEMPLATES.find((t) => t.key === selected) ?? TEMPLATES[0];
   const { currentProfile } = useIdentitySystem();
   const id = currentProfile?.icpPublicKey || "";
   const [showCopied, setShowCopied] = useState(false);

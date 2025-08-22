@@ -1,198 +1,310 @@
+// WebsiteLogins.tsx — entries-only, IDB-backed, no useState for data
+
 import React from "react";
-import { Copy, Edit2, Trash2, MoreVertical, Globe } from "lucide-react";
+import { Copy, Edit2, Trash2, Globe, Plus } from "lucide-react";
 import funnyGhostIcon from "../../../public/funny-ghost.svg";
+import { ghostkeysStorage } from "../../storage/IDBService.ts";
+import { useIdentitySystem } from "../../utility/identity";
+import GKFormModal, { GKField } from "./GKFormModal";
 
-// Self-contained Website Logins view (no external props). Uses plain CSS classes
-// expected in your stylesheet (see previous message for CSS).
-
-export type LoginItem = {
-  id: string;
+type Site = {
   name: string;
-  domain?: string;
-  username: string;
-  password?: string;
+  entries: Array<{ login: string; password: string }>;
 };
 
 export default function WebsiteLogins(): JSX.Element {
-  // --- Mock data ---
-  const [items, setItems] = React.useState<LoginItem[]>([
-    { id: crypto.randomUUID(), name: "Google", domain: "google.com", username: "nick@example.com", password: "p@55W0rd!" },
-    { id: crypto.randomUUID(), name: "GitHub", domain: "github.com", username: "nick", password: "hunter2" },
-    { id: crypto.randomUUID(), name: "AWS Console", domain: "aws.amazon.com", username: "nick.ireland", password: "Very$ecret123" },
-    { id: crypto.randomUUID(), name: "Dropbox", domain: "dropbox.com", username: "nick.ireland", password: "Very$ecret123" },
-    { id: crypto.randomUUID(), name: "Facebook", domain: "facebook.com", username: "nick.ireland", password: "Very$ecret123" },
-    { id: crypto.randomUUID(), name: "Twitter", domain: "twitter.com", username: "nick.ireland", password: "Very$ecret123" },
-  ]);
+  const [openAddSite, setOpenAddSite] = React.useState(false);
+  const [openAddEntryForIdx, setOpenAddEntryForIdx] = React.useState<number | null>(null);
+  const { currentProfile } = useIdentitySystem();
+  const userId = currentProfile?.icpPublicKey || "";   // same pattern as SpreadsheetCanvas
+  const vaultId = "default";
 
+  // ---- Model (no React state for data) ----
+  const modelRef = React.useRef<{ sites: Site[] }>({ sites: [] });
+
+  // force re-render when model changes (like a "draw" in the canvas)
+  const [tick, setTick] = React.useState(0);
+  const rerender = () => setTick((t) => t + 1);
+
+  // UI-only states
   const [q, setQ] = React.useState("");
+  const [toastMsg, setToastMsg] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
 
-  // --- Derived ---
-  const filtered = React.useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return items;
-    return items.filter((it) =>
-        [it.name, it.username, it.domain]
-            .filter(Boolean)
-            .some((v) => String(v).toLowerCase().includes(needle))
-    );
-  }, [q, items]);
+  // ---- Load from IDB on mount ----
+  React.useEffect(() => {
+    (async () => {
+      if (!userId) return; // no profile yet → skip (same behavior as SpreadsheetCanvas)
+      const sites = await ghostkeysStorage.getWebsiteLogins(userId, vaultId);
+      modelRef.current.sites = sites ?? [];
+      rerender();
+    })();
+  }, [userId]);
 
-  // --- Actions ---
-  async function handleCopyPassword(id: string) {
-    const it = items.find((x) => x.id === id);
-    if (!it?.password) return;
+  // ---- Save helper (like saveSpreadsheetToIDB) ----
+  async function saveWebsiteLoginsToIDB() {
+    if (!userId) return;
+    setSaving(true);
     try {
-      await navigator.clipboard.writeText(it.password);
+      await ghostkeysStorage.setWebsiteLogins(userId, vaultId, modelRef.current.sites);
+      toast("Saved");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ---- Export (JSON) ----
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(modelRef.current.sites, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "website-logins.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ---- Toast ----
+  function toast(msg: string) {
+    setToastMsg(msg);
+    window.setTimeout(() => setToastMsg(null), 1200);
+  }
+
+  // ---- Derived (filter on render; data lives in ref) ----
+  const filtered: Site[] = React.useMemo(() => {
+    const all = modelRef.current.sites;
+    const needle = q.trim().toLowerCase();
+    if (!needle) return all;
+    return all.filter(
+        (s) =>
+            s.name.toLowerCase().includes(needle) ||
+            s.entries.some((e) => e.login.toLowerCase().includes(needle))
+    );
+    // depend on tick so recompute after mutations
+  }, [q, tick]);
+
+  // ---- Mutations (always mutate modelRef + rerender + save) ----
+  function addSite() {
+    const name = prompt("Website name (e.g. Google)")?.trim();
+    if (!name) return;
+    modelRef.current.sites = [{ name, entries: [] }, ...modelRef.current.sites];
+    rerender();
+    saveWebsiteLoginsToIDB();
+  }
+
+  function renameSite(idx: number) {
+    const cur = modelRef.current.sites[idx];
+    if (!cur) return;
+    const name = prompt("Rename site", cur.name)?.trim();
+    if (!name) return;
+    const next = modelRef.current.sites.slice();
+    next[idx] = { ...next[idx], name };
+    modelRef.current.sites = next;
+    rerender();
+    saveWebsiteLoginsToIDB();
+  }
+
+  function deleteSite(idx: number) {
+    const cur = modelRef.current.sites[idx];
+    if (!cur) return;
+    if (!confirm(`Delete “${cur.name}” and all its entries?`)) return;
+    const next = modelRef.current.sites.filter((_, i) => i !== idx);
+    modelRef.current.sites = next;
+    rerender();
+    saveWebsiteLoginsToIDB();
+  }
+
+  function addEntry(siteIdx: number) {
+    const login = prompt("Login (e.g. username or email)")?.trim();
+    if (login == null || login === "") return;
+    const password = prompt("Password")?.trim() ?? "";
+    const next = modelRef.current.sites.slice();
+    const site = next[siteIdx];
+    if (!site) return;
+    next[siteIdx] = { ...site, entries: [{ login, password }, ...site.entries] };
+    modelRef.current.sites = next;
+    rerender();
+    saveWebsiteLoginsToIDB();
+  }
+
+  function editEntry(siteIdx: number, entryIdx: number) {
+    const next = modelRef.current.sites.slice();
+    const site = next[siteIdx];
+    const entry = site?.entries?.[entryIdx];
+    if (!site || !entry) return;
+
+    const login = prompt("Edit login", entry.login)?.trim();
+    if (login == null) return;
+    const password = prompt("Edit password (leave blank to keep)", entry.password)?.trim();
+
+    const newEntry = {
+      login,
+      password: password === "" ? entry.password : (password ?? entry.password),
+    };
+    const newEntries = site.entries.slice();
+    newEntries[entryIdx] = newEntry;
+
+    next[siteIdx] = { ...site, entries: newEntries };
+    modelRef.current.sites = next;
+    rerender();
+    saveWebsiteLoginsToIDB();
+  }
+
+  function deleteEntry(siteIdx: number, entryIdx: number) {
+    const site = modelRef.current.sites[siteIdx];
+    const entry = site?.entries?.[entryIdx];
+    if (!site || !entry) return;
+    if (!confirm(`Delete entry “${entry.login}” from ${site.name}?`)) return;
+
+    const next = modelRef.current.sites.slice();
+    next[siteIdx] = { ...site, entries: site.entries.filter((_, j) => j !== entryIdx) };
+    modelRef.current.sites = next;
+    rerender();
+    saveWebsiteLoginsToIDB();
+  }
+
+  async function copyPassword(siteIdx: number, entryIdx: number) {
+    const pwd = modelRef.current.sites?.[siteIdx]?.entries?.[entryIdx]?.password ?? "";
+    if (!pwd) return;
+    try {
+      await navigator.clipboard.writeText(pwd);
       toast("Password copied");
-    } catch (e) {
-      console.error(e);
+    } catch {
       toast("Could not copy");
     }
   }
 
-  function handleAdd() {
-    // ultra-minimal add flow with prompt()s for MVP
-    const name = prompt("Website name (e.g. Google)")?.trim();
-    if (!name) return;
-    const domain = prompt("Domain (e.g. google.com)")?.trim() || undefined;
-    const username = prompt("Username / Email")?.trim() || "";
-    const password = prompt("Password (optional)")?.trim() || undefined;
-    const next: LoginItem = { id: crypto.randomUUID(), name, domain, username, password };
-    setItems((prev) => [next, ...prev]);
-    toast("Login added");
-  }
-
-  function handleEdit(id: string) {
-    const it = items.find((x) => x.id === id);
-    if (!it) return;
-    const name = prompt("Edit name", it.name)?.trim();
-    if (!name) return;
-    const domain = prompt("Edit domain", it.domain ?? "")?.trim() || undefined;
-    const username = prompt("Edit username", it.username)?.trim() || "";
-    const password = prompt("Edit password (leave blank to keep)")?.trim();
-    setItems((prev) =>
-        prev.map((x) =>
-            x.id === id ? { ...x, name, domain, username, password: password === "" ? x.password : password } : x
-        )
-    );
-    toast("Login updated");
-  }
-
-  function handleDelete(id: string) {
-    const it = items.find((x) => x.id === id);
-    if (!it) return;
-    if (!confirm(`Delete “${it.name}”?`)) return;
-    setItems((prev) => prev.filter((x) => x.id !== id));
-    toast("Login deleted");
-  }
-
-  // tiny toast helper
-  const [toastMsg, setToastMsg] = React.useState<string | null>(null);
-  function toast(msg: string) {
-    setToastMsg(msg);
-    window.setTimeout(() => setToastMsg(null), 1500);
-  }
-
   return (
       <section className="website-logins">
-        {/* Header */}
         <div className="website-logins-header">
-          <div className={'title-and-button'}>
-            <img src={'/ghost-white.png'} alt={'logo'} className={'ghost-icon'}></img>
-            <h1>Website Logins</h1>
-
+          <div className="title-and-button">
+            <img src={"/ghost-white.png"} alt={"logo"} className={"ghost-icon"} />
+            <h1>Website Logins {saving ? "· Saving…" : ""}</h1>
 
             <div className="header-actions">
-              <button className="gk-btn gk-btn-add" onClick={handleAdd}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 4v16m8-8H4"/>
-                </svg>
-                Add
+              <button className="gk-btn gk-btn-add" onClick={() => setOpenAddSite(true)}>
+                <Plus size={16} /> Add site
               </button>
-
-              <button className="gk-btn gk-btn-export">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 4v8m0 0l-3-3m3 3l3-3m-9 8h12"/>
-                </svg>
-                Export
-              </button>
-
-              <button className="gk-btn gk-btn-save">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/>
-                </svg>
-                Save
-              </button>
+              <button className="gk-btn gk-btn-export" onClick={exportJson}>Export</button>
+              <button className="gk-btn gk-btn-save" onClick={saveWebsiteLoginsToIDB}>Save</button>
             </div>
           </div>
 
           <div className="search-bar">
-            <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
             <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search logins…"
+                placeholder="Search by site or login…"
                 aria-label="Search logins"
             />
           </div>
         </div>
 
-        {/* Grid */}
         <div className="website-logins-grid">
           {filtered.length === 0 ? (
               <div className="empty-state">
-                <div className="ghost-float" style={{fontSize: 64}}>
-                  <img src={funnyGhostIcon}></img>
+                <div className="ghost-float" style={{ fontSize: 64 }}>
+                  <img src={funnyGhostIcon} />
                 </div>
-                <h2 style={{marginBottom: 24}}>No logins yet</h2>
-                <button className="gk-btn gk-btn-add" onClick={handleAdd}>
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M12 4v16m8-8H4"/>
-                  </svg>
-                  Add
+                <h2 style={{ marginBottom: 24 }}>No logins yet</h2>
+                <button className="gk-btn gk-btn-add" onClick={addSite}>
+                  <Plus size={16} /> Add site
                 </button>
               </div>
           ) : (
-              filtered.map((it) => (
-                  <article key={it.id} className="login-card" aria-label={`${it.name} login`}>
-                    <div style={{display: "flex", alignItems: "center", gap: 12}}>
-                      <LogoFavicon domain={it.domain}/>
-                      <div style={{flex: 1, minWidth: 0}}>
-                        <h3 style={{ margin: 0, color: "#fff", fontSize: 16, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.name}</h3>
-                        <p style={{ margin: 0, color: "rgba(255,255,255,.7)", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.username}</p>
+              filtered.map((site, i) => (
+                  <article key={`${site.name}-${i}`} className="login-card" aria-label={`${site.name} logins`}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={faviconBoxStyle}><Globe size={18} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <h3 style={{ margin: 0, color: "#fff", fontSize: 16, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {site.name}
+                        </h3>
+                        <p style={{ margin: 0, color: "rgba(255,255,255,.7)", fontSize: 13 }}>
+                          {site.entries.length} entr{site.entries.length === 1 ? "y" : "ies"}
+                        </p>
                       </div>
-                      <button title="More" aria-label="More" style={btnIconStyle}>
-                        <MoreVertical size={18} />
+                      <button title="Rename site" aria-label="Rename site" style={btnIconStyle} onClick={() => renameSite(i)}>
+                        <Edit2 size={18} />
+                      </button>
+                      <button title="Delete site" aria-label="Delete site" style={btnIconStyle} onClick={() => deleteSite(i)}>
+                        <Trash2 size={18} />
                       </button>
                     </div>
 
-                    <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                      {it.password && (
-                          <span style={{ letterSpacing: 3, color: "#fff" }}>{"•".repeat(10)}</span>
+                    <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+                      {site.entries.length === 0 ? (
+                          <div style={{ opacity: 0.8, fontSize: 13 }}>No entries yet.</div>
+                      ) : (
+                          site.entries.map((e, j) => (
+                              <div key={`${e.login}-${j}`} style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto", alignItems: "center", gap: 8 }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.login}</div>
+                                  <div style={{ letterSpacing: 3, opacity: 0.9 }}>
+                                    {"•".repeat(Math.max(8, Math.min(e.password.length, 14)))}
+                                  </div>
+                                </div>
+                                <IconButton label="Copy" onClick={() => copyPassword(i, j)}><Copy size={14} /></IconButton>
+                                <IconButton label="Edit" onClick={() => editEntry(i, j)}><Edit2 size={14} /></IconButton>
+                                <IconButton label="Delete" onClick={() => deleteEntry(i, j)}><Trash2 size={14} /></IconButton>
+                              </div>
+                          ))
                       )}
-                      <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                        <IconButton label="Copy" onClick={() => handleCopyPassword(it.id)}><Copy size={14} /></IconButton>
-                        <IconButton label="Edit" onClick={() => handleEdit(it.id)}><Edit2 size={14} /></IconButton>
-                        <IconButton label="Delete" onClick={() => handleDelete(it.id)}><Trash2 size={14} /></IconButton>
-                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+                      <button className="gk-btn gk-btn-add" onClick={() => setOpenAddEntryForIdx(i)}>
+                        <Plus size={14} /> Add entry
+                      </button>
                     </div>
                   </article>
               ))
           )}
         </div>
 
-        {/* Toast */}
-        {toastMsg && (
-            <div style={toastStyle} role="status" aria-live="polite">{toastMsg}</div>
-        )}
+        {/* Add Site */}
+        <GKFormModal
+            open={openAddSite}
+            title="Add website"
+            description="Group multiple credentials under a single site."
+            onClose={() => setOpenAddSite(false)}
+            okLabel="Create"
+            fields={[
+              { name: "site", label: "Website name", placeholder: "e.g. Google", required: true },
+            ]}
+            onSubmit={({ site }) => {
+              modelRef.current.sites = [{ name: site, entries: [] }, ...modelRef.current.sites];
+              setOpenAddSite(false);
+              rerender();
+              saveWebsiteLoginsToIDB();
+            }}
+        />
+
+        {/* Add Entry */}
+        <GKFormModal
+            open={openAddEntryForIdx != null}
+            title="Add login entry"
+            description="Store one username/email + password pair."
+            onClose={() => setOpenAddEntryForIdx(null)}
+            okLabel="Add"
+            fields={[
+              { name: "login", label: "Login", placeholder: "username or email", required: true, autoComplete: "username" },
+              { name: "password", label: "Password", placeholder: "••••••••", type: "password", required: true, autoComplete: "current-password" },
+            ]}
+            onSubmit={({ login, password }) => {
+              const idx = openAddEntryForIdx!;
+              const next = modelRef.current.sites.slice();
+              const site = next[idx];
+              if (site) {
+                next[idx] = { ...site, entries: [{ login, password }, ...site.entries] };
+                modelRef.current.sites = next;
+                rerender();
+                saveWebsiteLoginsToIDB();
+              }
+              setOpenAddEntryForIdx(null);
+            }}
+        />
+
+        {toastMsg && <div style={toastStyle} role="status" aria-live="polite">{toastMsg}</div>}
       </section>
   );
 }
@@ -205,71 +317,8 @@ function IconButton({ label, onClick, children }: { label: string; onClick?: () 
   );
 }
 
-function LogoFavicon({ domain }: { domain?: string }) {
-  if (domain == 'google.com') {
-    return <img src={'/google.png'} alt="favicon" style={{ height: 40, width: 40, borderRadius: 12 }} />;
-  }
-  if (domain == 'github.com') {
-    return <img src={'/github.jpeg'} alt="favicon" style={{ height: 40, width: 40, borderRadius: 12 }} />;
-  }
-  if (domain == 'aws.amazon.com') {
-    return <img src={'/aws.png'} alt="favicon" style={{ height: 40, width: 40, borderRadius: 12 }} />;
-  }
-  if (domain == 'facebook.com') {
-    return <img src={'/facebook.png'} alt="favicon" style={{ height: 40, width: 40, borderRadius: 12 }} />;
-  }
-  if (domain == 'dropbox.com') {
-    return <img src={'/dropbox.png'} alt="favicon" style={{ height: 40, width: 40, borderRadius: 12 }} />;
-  }
-  if (domain == 'twitter.com') {
-    return <img src={'/twitter.png'} alt="favicon" style={{ height: 40, width: 40, borderRadius: 12 }} />;
-  }
-  return (
-      <div style={faviconBoxStyle}>
-        <Globe size={18} />
-      </div>
-  );
-}
-
-// --- Inline style tokens for small bits (keeps CSS file clean) ---
-const btnChipStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.06)",
-  color: "rgba(255,255,255,0.85)",
-  padding: 6,
-  borderRadius: 8,
-  border: "none",
-  cursor: "pointer",
-};
-
-const btnIconStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,.15)",
-  color: "rgba(255,255,255,0.75)",
-  padding: 6,
-  borderRadius: 999,
-  width: 30,
-  height: 30,
-  border: "none",
-  cursor: "pointer",
-};
-
-const faviconBoxStyle: React.CSSProperties = {
-  height: 40,
-  width: 40,
-  borderRadius: 12,
-  background: "rgba(255,255,255,0.1)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: "rgba(255,255,255,0.85)",
-};
-
-const toastStyle: React.CSSProperties = {
-  position: "fixed",
-  right: 20,
-  bottom: 20,
-  background: "rgba(17,24,39,0.9)",
-  color: "#fff",
-  padding: "10px 14px",
-  borderRadius: 10,
-  boxShadow: "0 10px 30px rgba(0,0,0,.25)",
-};
+// small inline styles
+const btnChipStyle: React.CSSProperties = { background:"rgba(255,255,255,0.06)", color:"rgba(255,255,255,0.85)", padding:6, borderRadius:8, border:"none", cursor:"pointer" };
+const btnIconStyle: React.CSSProperties = { background:"rgba(255,255,255,.15)", color:"rgba(255,255,255,0.75)", padding:6, borderRadius:999, width:30, height:30, border:"none", cursor:"pointer" };
+const faviconBoxStyle: React.CSSProperties = { height:40, width:40, borderRadius:12, background:"rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.85)" };
+const toastStyle: React.CSSProperties = { position:"fixed", right:20, bottom:20, background:"rgba(17,24,39,0.9)", color:"#fff", padding:"10px 14px", borderRadius:10, boxShadow:"0 10px 30px rgba(0,0,0,.25)" };
