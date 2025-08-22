@@ -82,10 +82,8 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const bootstrap = async () => {
-    const seed: string | undefined = await getSeedPhrase();
-
-    if (seed) {
-      const profile = await createProfileFromSeed(seed);
+    const profile: UserProfile | undefined = await getUserProfile();
+    if (profile && profile.seedPhrase && profile.identity && profile.principal) {
       setCurrentProfile(profile);
     } else {
       const profile = await createProfileFromSeed();
@@ -94,13 +92,21 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const getSeedPhrase = async () => {
+  const getUserProfile = async () => {
     if (!db.current) throw new Error("DB not initialized");
     const tx = db.current.transaction(PROFILES_STORE, "readwrite");
 
-    return new Promise<string | undefined>((resolve, reject) => {
+    return new Promise<UserProfile | undefined>((resolve, reject) => {
       const req = tx.objectStore(PROFILES_STORE).getAll();
-      req.onsuccess = () => resolve(req.result?.[0]?.seedPhrase);
+      req.onsuccess = () => {
+        const userProfile: UserProfile = {
+          userID: req.result?.[0]?.userID,
+          seedPhrase: req.result?.[0]?.seedPhrase,
+          identity: req.result?.[0]?.identity,
+          principal: req.result?.[0]?.principal
+        }
+        resolve(userProfile);
+      }
       req.onerror = () => reject(req.error);
     });
   }
