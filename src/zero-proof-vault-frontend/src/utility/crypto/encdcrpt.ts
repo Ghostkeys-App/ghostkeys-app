@@ -1,10 +1,10 @@
-// vaultCrypto.ts
 import { sha256 } from "@noble/hashes/sha2";
 import { hkdf } from "@noble/hashes/hkdf";
 import { english, generateMnemonic } from 'viem/accounts';
 import { Principal } from "@dfinity/principal";
 import { mnemonicToSeed } from "@scure/bip39";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
+import { deriveSlip10Ed25519 } from "./SLIP‑0010";
 
 /*
     Module for all encryption-related operations on frontend
@@ -15,10 +15,8 @@ const VAULT_KDF_MSG = "vault-key-derivation-v1";
 // Derive principal
 export const derivePrincipalFromSeed = async (seed: string): Promise<Principal> => {
     const keySpecificSeed64 = await mnemonicToSeed(seed);
-    // TODO: How to derive key from specific path
-    // const { key: sk } = derivePath(`m/44'/223'/0'/0'/0'`, keySpecificSeed64); // 32-byte Ed25519 secret
-    const sk = hkdf(sha256, keySpecificSeed64, undefined, undefined, 32);
-    const identity = Ed25519KeyIdentity.fromSecretKey(new Uint8Array(sk).buffer);
+    const secret = deriveSlip10Ed25519(keySpecificSeed64, "m/44'/223'/0'/0'/0'");
+    const identity = Ed25519KeyIdentity.fromSecretKey(secret.buffer);
     const principal = identity.getPrincipal();
     return principal;
 }
