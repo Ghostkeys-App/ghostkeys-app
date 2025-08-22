@@ -5,7 +5,8 @@ import { Principal } from "@dfinity/principal";
 import { mnemonicToSeed } from "@scure/bip39";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
 import { TransportSecretKey } from '@dfinity/vetkeys'
-import { deriveSlip10Ed25519 } from "./SLIP‑0010";
+import { deriveSlip10Ed25519 } from "./SLIP_0010";
+import { concatBytes } from "@noble/hashes/utils";
 import { GhostkeysVetKdArgs } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 
 /*
@@ -41,6 +42,12 @@ export const deriveSignatureFromPublicKey = async (publicKey: string, identity: 
     return derivedKey;
 };
 
+export const deriveFinalKey = async (keyVault: Uint8Array, vetKD: Uint8Array): Promise<Uint8Array> => {
+    const salt = sha256(VAULT_SALT + USER_SALT);
+    const finalKey = hkdf(sha256, concatBytes(keyVault, vetKD), salt, DEFAULT_PURPOSE, 32);
+    return finalKey;
+}
+
 const deriveInputFromUser = async (userId: string, purpose?: string, rotateCtr?: number): Promise<Uint8Array> => {
     const enc = new TextEncoder();
     const label = enc.encode(`${USER_SALT}|${userId}|${purpose ?? DEFAULT_PURPOSE}|${rotateCtr ?? DEFAULT_ROTATION}`);
@@ -62,7 +69,7 @@ const aesEncrypt = async (data: string, key: Uint8Array) => {
 
     const cryptoKey = await crypto.subtle.importKey(
         "raw",
-        key,
+        new Uint8Array(key),
         { name: "AES-GCM" },
         false,
         ["encrypt"]
@@ -83,7 +90,7 @@ const aesDecrypt = async (blob: string, key: Uint8Array) => {
 
     const cryptoKey = await crypto.subtle.importKey(
         "raw",
-        key,
+        new Uint8Array(key),
         { name: "AES-GCM" },
         false,
         ["decrypt"]
