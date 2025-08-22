@@ -1,5 +1,3 @@
-// (Refactored for ghostkeys MVP)
-
 import {
   createContext,
   useState,
@@ -12,7 +10,6 @@ import {
 import {
   DB_NAME,
   DB_VERSION,
-  LOCAL_STORAGE_EVM_PUBLIC_ADDRESS,
   LOCAL_STORAGE_ICP_PUBLIC_ADDRESS,
   LOCAL_STORAGE_ORGANIZATION_VAULT_ID,
   LOCAL_STORAGE_SEED_PHRASE,

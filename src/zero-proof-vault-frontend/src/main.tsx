@@ -3,13 +3,16 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { IdentitySystemProvider } from './utility/identity';
 import './index.scss';
+import { APIContextProvider } from './utility/api/APIContext';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <>
     <IdentitySystemProvider>
-      {/* <VaultContextProvider> */}
+      <APIContextProvider>
+        {/* <VaultContextProvider> */}
         <App />
-      {/* </VaultContextProvider> */}
+        {/* </VaultContextProvider> */}
+      </APIContextProvider>
     </IdentitySystemProvider>
   </>,
 );

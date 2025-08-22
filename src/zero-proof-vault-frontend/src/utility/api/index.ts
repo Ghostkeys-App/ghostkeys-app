@@ -9,10 +9,14 @@ import { idlFactory as sharedCanisterIDL } from '../../../../declarations/shared
 import { _SERVICE as privateCanisterType } from '../../../../declarations/vault-canister-backend/vault-canister-backend.did';
 import { idlFactory as privateCanisterIDL } from '../../../../declarations/vault-canister-backend/index';
 
+export type FactoryCanisterAPI = ActorSubclass<factoryCanisterType>;
+export type SharedCanisterAPI = ActorSubclass<sharedCanisterType>;
+export type VaultCanisterAPI = ActorSubclass<privateCanisterType>;
+
 export interface GhostkeysActors {
-    FactoryCanisterActor: ActorSubclass<factoryCanisterType> | undefined,
-    SharedCanisterActor: ActorSubclass<sharedCanisterType> | undefined,
-    VaultCanisterActor: ActorSubclass<privateCanisterType> | undefined,
+    FactoryCanisterActor: FactoryCanisterAPI | undefined,
+    SharedCanisterActor: SharedCanisterAPI | undefined,
+    VaultCanisterActor: VaultCanisterAPI | undefined,
 }
 
 const ACTORS: GhostkeysActors = {
@@ -21,21 +25,22 @@ const ACTORS: GhostkeysActors = {
     VaultCanisterActor: undefined
 }
 
-export const getOrCreateFactoryCanisterActor = async (canisterId: string | Principal, httpAgent: HttpAgent): Promise<ActorSubclass<factoryCanisterType>> => {
+// Calling those, each actor will have separate https agent attached
+export const getOrCreateFactoryCanisterActor = async (canisterId: string | Principal, httpAgent?: HttpAgent): Promise<FactoryCanisterAPI> => {
     if (!ACTORS.FactoryCanisterActor) {
         ACTORS.FactoryCanisterActor = await createActor<factoryCanisterType>(canisterId, { agent: httpAgent }, factoryCanisterIDL);
     }
     return ACTORS.FactoryCanisterActor;
 }
 
-export const getOrCreateSharedCanisterActor = async (canisterId: string | Principal, httpAgent: HttpAgent): Promise<ActorSubclass<sharedCanisterType>> => {
+export const getOrCreateSharedCanisterActor = async (canisterId: string | Principal, httpAgent?: HttpAgent): Promise<SharedCanisterAPI> => {
     if (!ACTORS.SharedCanisterActor) {
         ACTORS.SharedCanisterActor = await createActor<sharedCanisterType>(canisterId, { agent: httpAgent }, sharedCanisterIDL);
     }
     return ACTORS.SharedCanisterActor;
 }
 
-export const getOrCreatePrivateCanisterActor = async (canisterId: string | Principal, httpAgent: HttpAgent): Promise<ActorSubclass<privateCanisterType>> => {
+export const getOrCreatePrivateCanisterActor = async (canisterId: string | Principal, httpAgent?: HttpAgent): Promise<VaultCanisterAPI> => {
     if (!ACTORS.VaultCanisterActor) {
         ACTORS.VaultCanisterActor = await createActor<privateCanisterType>(canisterId, { agent: httpAgent }, privateCanisterIDL);
     }
