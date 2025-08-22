@@ -4,13 +4,19 @@ import { english, generateMnemonic } from 'viem/accounts';
 import { Principal } from "@dfinity/principal";
 import { mnemonicToSeed } from "@scure/bip39";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
+import { TransportSecretKey } from '@dfinity/vetkeys'
 import { deriveSlip10Ed25519 } from "./SLIP‑0010";
+import { GhostkeysVetKdArgs } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 
 /*
     Module for all encryption-related operations on frontend
 */
 
-const VAULT_KDF_MSG = "vault-key-derivation-v1";
+// Using this for extra layer of protection
+const VAULT_SALT = "ghostkeys:client:v1|";
+const USER_SALT = "ghostkeys:kdf:v1";
+const DEFAULT_PURPOSE = "encrypt-vault";
+const DEFAULT_ROTATION = 0;
 
 // Derive principal
 export const derivePrincipalAndIdentityFromSeed = async (seed: string): Promise<{ identity: Ed25519KeyIdentity, principal: Principal }> => {
@@ -28,13 +34,27 @@ export const generateSeedAndIdentityPrincipal = async (): Promise<{ seed: string
     return { seed, identity, principal };
 };
 
-export const deriveSignatureFromPublicKey = async (publicKey: string): Promise<Uint8Array> => {
-    const identity = currentProfile!.icpAccount?.identity;
-    const signature = await identity!.sign(new TextEncoder().encode(publicKey));
+export const deriveSignatureFromPublicKey = async (publicKey: string, identity: Ed25519KeyIdentity): Promise<Uint8Array> => {
+    const signature = await identity.sign(new TextEncoder().encode(VAULT_SALT + publicKey).buffer);
     const keyMaterial = await crypto.subtle.digest("SHA-256", signature);
     const derivedKey = new Uint8Array(keyMaterial).slice(0, 32);
     return derivedKey;
 };
+
+const deriveInputFromUser = async (userId: string, purpose?: string, rotateCtr?: number): Promise<Uint8Array> => {
+    const enc = new TextEncoder();
+    const label = enc.encode(`${USER_SALT}|${userId}|${purpose ?? DEFAULT_PURPOSE}|${rotateCtr ?? DEFAULT_ROTATION}`);
+    const h = await crypto.subtle.digest("SHA-256", label);
+    return new Uint8Array(h).slice(0, 32);
+}
+
+export const generateGhostKeysArgs = async (userId: Principal): Promise<GhostkeysVetKdArgs> => {
+    const scope = { PerUser: { user: userId } };
+    const input = await deriveInputFromUser(userId.toString());
+    const randomEntropy = TransportSecretKey.random();
+    const transport_public_key = randomEntropy.publicKeyBytes();
+    return { scope, input, transport_public_key }
+}
 
 const aesEncrypt = async (data: string, key: Uint8Array) => {
     const iv = crypto.getRandomValues(new Uint8Array(12));

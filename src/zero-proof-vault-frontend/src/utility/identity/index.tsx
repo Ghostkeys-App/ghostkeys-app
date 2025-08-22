@@ -10,16 +10,11 @@ import {
 import {
   DB_NAME,
   DB_VERSION,
-  LOCAL_STORAGE_ICP_PUBLIC_ADDRESS,
-  LOCAL_STORAGE_ORGANIZATION_VAULT_ID,
-  LOCAL_STORAGE_SEED_PHRASE,
   PROFILES_STORE,
-  shortenAddress,
   VAULTS_STORE,
 } from "./constants";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
 import { Principal } from "@dfinity/principal";
-import { mnemonicToSeedSync } from "@scure/bip39";
 import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
 import { derivePrincipalAndIdentityFromSeed, generateSeedAndIdentityPrincipal } from "../crypto/encdcrpt";
 
@@ -40,7 +35,7 @@ export type UserProfile = {
 
 export type IdentityContextType = {
   currentVault: Vault | null;
-  currentProfile: UserProfile | null;
+  currentProfile: UserProfile;
   createVault: (nickname: string) => Promise<Vault>;
   switchVault: (vault: Vault) => void;
   renameVault: (vaultID: string, newName: string) => Vault | undefined;
@@ -55,7 +50,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   const db = useRef<IDBDatabase | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [currentVault, setCurrentVault] = useState<Vault | null>(null);
-  const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile>({} as any); // as any because there is no circumstances where currentProfile is used and could be possibly undefined
 
   useEffect(() => {
     const init = async () => {
