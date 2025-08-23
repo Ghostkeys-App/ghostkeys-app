@@ -1084,6 +1084,8 @@ export default function SpreadsheetCanvas(): JSX.Element {
     })();
   }
 
+  generateSeedAndIdentityPrincipal().then(res => console.log(res.principal.toString()));
+
   // Testing backend canister | THIS IS ONLY FOR TESTING
   const makeCallToFactory = async () => {
     console.log("Testing canister calls");

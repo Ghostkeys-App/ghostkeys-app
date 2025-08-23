@@ -8,7 +8,7 @@ import { useIdentitySystem } from "../../utility/identity";
 import GKFormModal, { GKField } from "./GKFormModal";
 import AddSiteModal from "./AddSiteModal";
 import { useAPIContext } from "../../utility/api/APIContext.tsx";
-import { aesDecrypt, aesEncrypt, deriveFinalKey, deriveSignatureFromPublicKey, generateSeedAndIdentityPrincipal } from "../../utility/crypto/encdcrpt.ts";
+import { aesDecrypt, aesEncrypt, deriveFinalKey, deriveSignatureFromPublicKey } from "../../utility/crypto/encdcrpt.ts";
 import { VaultData } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 
 type Site = {
@@ -170,7 +170,8 @@ export default function WebsiteLogins(): JSX.Element {
     // Testing backend canister | THIS IS ONLY FOR TESTING
     const makeCallToEncryptAndSaveDataToVault = async () => {
       console.log("Testing canister calls");
-      const vaultId = "frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe";
+      // const vaultId = "frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe";
+      const vaultId = 'hnw7b-wb3el-olaeb-7tct5-kzljq-kx5dx-krvfw-lsfbn-fdjc4-t5bp5-xae';
       console.log('user', userId);
       console.log('vault', vaultId);
 
@@ -190,8 +191,6 @@ export default function WebsiteLogins(): JSX.Element {
       const websiteName = await aesEncrypt("Google", fnKD);
       const websiteUser = await aesEncrypt('test', fnKD);
       const websitePass = await aesEncrypt('pass', fnKD);
-
-      
 
       const data: VaultData = {
         'vault_name': vaultName,
@@ -215,6 +214,18 @@ export default function WebsiteLogins(): JSX.Element {
         console.log('decryptedName', decryptedName);
       }
 
+      console.log('deleting vault', vaultId);
+      await sharedActor.delete_vault(userId, vaultId);
+      const getData2 = (await sharedActor.get_vault(userId, vaultId))[0];
+      console.log("data for user", getData2);
+
+      const getData3 = (await sharedActor.get_vault(userId, 'frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe'))[0];
+      console.log("data for user", getData3);
+
+      await sharedActor.clear_all_user_vaults(userId);
+
+      const getData4 = (await sharedActor.get_vault(userId, 'frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe'))[0];
+      console.log("data for user", getData4);
     }
 
   return (
