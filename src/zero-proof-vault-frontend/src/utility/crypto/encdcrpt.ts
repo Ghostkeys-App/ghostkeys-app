@@ -4,7 +4,7 @@ import { english, generateMnemonic } from 'viem/accounts';
 import { Principal } from "@dfinity/principal";
 import { mnemonicToSeed } from "@scure/bip39";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
-import { TransportSecretKey } from '@dfinity/vetkeys'
+import { TransportSecretKey } from '@dfinity/vetkeys';
 import { deriveSlip10Ed25519 } from "./SLIP_0010";
 import { concatBytes } from "@noble/hashes/utils";
 import { GhostkeysVetKdArgs } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";

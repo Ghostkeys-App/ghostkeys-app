@@ -1,7 +1,7 @@
 // import { useState } from "react";
 // import { VaultColumns } from "../utility/vault-provider";
 // import VaultCell from "./VaultCell";
-
+//
 // interface VaultRowProp {
 //     rowId: number;
 //     row: Record<string, string>;
@@ -9,7 +9,7 @@
 //     handleDeleteRow: (rowId: number) => void;
 //     handleUpdate: (rowId: number, columnName: string, value: string) => void;
 // }
-
+//
 // export default function VaultRow({
 //     rowId,
 //     row,
@@ -19,13 +19,13 @@
 // }: VaultRowProp) {
 //     // Debug logs
 //     // console.log("row", row);
-//     // console.log("rowId", rowId); 
+//     // console.log("rowId", rowId);
 //     // console.log("columnsVaultData", columnsVaultData);
 //     const [isEmpty, setIsEmpty] = useState(Object.values(row).every((v) => v === ""));
 //     const handleOnChange = (value: string) => {
 //         setIsEmpty(value.length == 0);
 //     };
-
+//
 //     return (
 //         <tr className={isEmpty ? "extra-row" : ""}>
 //             <td className="row-control" onClick={() => !isEmpty && handleDeleteRow(rowId)}>
@@ -44,4 +44,4 @@
 //         </tr>
 //     );
 // }
-
+//

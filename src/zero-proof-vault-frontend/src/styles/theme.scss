@@ -681,8 +681,8 @@ input, button {
           radial-gradient(1520px 120px at 12% 92%,rgba(147,197,253,.2),transparent 58%),
           radial-gradient(1180px 780px at 55% -6%,rgba(255,255,255,.06),transparent 60%);
 
-  /* Gentle drift so it feels alive */
-  animation: gk-drift 18s ease-in-out infinite alternate;
+  ///* Gentle drift so it feels alive */
+  //animation: gk-drift 18s ease-in-out infinite alternate;
 }
 
 /* Star/particle layer (very subtle twinkle) */
@@ -699,7 +699,7 @@ input, button {
   background-position: 0 0;
 
   /* Slow twinkle + drift */
-  animation: gk-twinkle 22s linear infinite;
+  //animation: gk-twinkle 22s linear infinite;
 }
 
 @keyframes gradientMove {
@@ -903,6 +903,10 @@ input, button {
 
 .gk-btn-save {
   background: linear-gradient(135deg, #22c55e, #16a34a);
+
+  &.not-synced {
+    background: linear-gradient(135deg, #fb923c, #f97316);
+  }
 }
 .gk-btn-save:hover {
   background: linear-gradient(135deg, #34d399, #22c55e);

@@ -4,25 +4,25 @@
 // import minusIcon from "../../public/minus.svg";
 // import { Column, TableVaultData, VaultColumns } from "../utility/vault-provider";
 // import VaultRow from "./VaultRow";
-
-
+//
+//
 // interface VaultTableProps {
 //     tableVaultData: TableVaultData;
 //     setTableVaultData: (newData: TableVaultData) => void;
 //     columnsVaultData: VaultColumns;
 //     setColumnsVaultData: (newColumns: VaultColumns) => void;
 // }
-
-
+//
+//
 // let nextColumnIndex = 1;
-
+//
 // export default function VaultTable({ tableVaultData, setTableVaultData, columnsVaultData, setColumnsVaultData }: VaultTableProps) {
 //     const [editingColIndex, setEditingColIndex] = useState<number | null>(null);
 //     const [draftName, setDraftName] = useState<string>("");
 //     const [innerTableVaultData, setInnerTableVaultData] = useState(tableVaultData);
-
+//
 //     const rows = buildRows(innerTableVaultData, columnsVaultData);
-
+//
 //     const handleUpdate = (rowId: number, columnId: string, newValue: string) => {
 //         let colEntry = Array.from(columnsVaultData.values()).find(c => c.id === columnId);
 //         if (!colEntry) return;
@@ -41,8 +41,8 @@
 //         setInnerTableVaultData(updatedMap);
 //         setTableVaultData(updatedMap);
 //     };
-
-
+//
+//
 //     const handleDeleteRow = (rowIdToDelete: number) => {
 //         const updatedMap = new Map(tableVaultData);
 //         tableVaultData.forEach((value, key) => {
@@ -62,7 +62,7 @@
 //         // This is bad... however for now is fine. Persistence is taken care with context and indexedDB - solid result for now
 //         setTimeout(() => window.location.reload(), 100);
 //     };
-
+//
 //     const handleAddColumn = () => {
 //         const newColumn: Column = { id: (columnsVaultData.size + 1).toString(), name: `New Column ${nextColumnIndex++}`, hidden: false };
 //         const updated = new Map(columnsVaultData)
@@ -70,7 +70,7 @@
 //         setColumnsVaultData(updated);
 //         setEditingColIndex(columnsVaultData.size); // auto start editing
 //     };
-
+//
 //     const handleUpdateColumnName = (value: string, columnId: string) => {
 //         const trimmed = value.trim();
 //         if (!trimmed) {
@@ -89,39 +89,39 @@
 //         console.log(columnsVaultData);
 //         setColumnsVaultData(updated);
 //         setEditingColIndex(null);
-
+//
 //         // const updated = new Map(columnsVaultData);
 //         // const oldName = [...updated.keys()][index];
 //         // updated.delete(oldName);
 //         // updated.set(newName, { id: (updated.size + 1).toString(), name: newName, hidden: false });
 //         // setColumnsVaultData(updated);
 //     }
-
-
-
+//
+//
+//
 //     const toggleColumnSecret = (index: number, hiddenVal: boolean) => {
 //         const updated = columnsVaultData.get(index.toString());
 //         updated!.hidden = hiddenVal;
 //         columnsVaultData.set(index.toString(), updated!);
 //         setColumnsVaultData(new Map(columnsVaultData)); // trigger re-render
 //     };
-
+//
 //     const handleDeleteColumn = (index: number) => {
 //         const confirmDelete = window.confirm(`Are you sure you want to delete column "${columnsVaultData.get(index.toString())?.name}"?`);
 //         if (!confirmDelete) return;
-
+//
 //         columnsVaultData.delete(index.toString());
-
+//
 //         const cellsToDelete = Array.from(tableVaultData.keys()).filter(key => key.columnId === index.toString());
 //         cellsToDelete.forEach(key => tableVaultData.delete(key));
-
+//
 //         setColumnsVaultData(new Map(columnsVaultData));
 //         setTableVaultData(new Map(tableVaultData)); // trigger re-render
 //         setEditingColIndex(null);
 //         // This is bad... however for now is fine. Persistence is taken care with context and indexedDB - solid result for now
 //         setTimeout(() => window.location.reload(), 100);
 //     };
-
+//
 //     // Highly inneficient
 //     function buildRows(
 //         data: TableVaultData,
@@ -129,7 +129,7 @@
 //     ): Record<number, Record<string, string>> {
 //         const rows: Record<number, Record<string, string>> = {};
 //         let maxRowId = 0;
-
+//
 //         data.forEach((value, { rowId, columnId }) => {
 //             const col = columns.get(columnId);
 //             if (!col) return;
@@ -137,7 +137,7 @@
 //             rows[rowId][col.name] = value;
 //             if (rowId > maxRowId) maxRowId = rowId;
 //         });
-
+//
 //         // Append 2 empty rows
 //         for (let i = 1; i <= 2; i++) {
 //             const rowId = maxRowId + i;
@@ -146,10 +146,10 @@
 //                 rows[rowId][col.name] = "";
 //             }
 //         }
-
+//
 //         return rows;
 //     }
-
+//
 //     return (
 //         <div className="editor">
 //             <table className="vault-table">
@@ -171,7 +171,7 @@
 //                                             setEditingColIndex(idx); setDraftName(col.name);
 //                                         }}>{col.name}</span>
 //                                     )}
-
+//
 //                                     <div className="column-icons">
 //                                         <img
 //                                             src={col.hidden ? setSecretIcon : unsetSecretIcon}
@@ -194,7 +194,7 @@
 //                         </th>
 //                     </tr>
 //                 </thead>
-
+//
 //                 <tbody>
 //                     {Object.entries(rows)
 //                         .filter(([_, row], idx, arr) => {
@@ -213,9 +213,9 @@
 //                             />
 //                         ))}
 //                 </tbody>
-
+//
 //             </table>
 //         </div>
 //     );
-
+//
 // }

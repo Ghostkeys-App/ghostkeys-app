@@ -12,7 +12,6 @@ export type TemplateKey =
 export interface TemplateSidebarProps {
   selected: TemplateKey;
   onSelect: (key: TemplateKey) => void;
-  profile: any;
   className?: string;
 }
 
@@ -47,7 +46,6 @@ function cx(...classes: Array<string | false | null | undefined>) {
 export default function TemplateSidebar({
                                           selected,
                                           onSelect,
-                                          profile,
                                         }: TemplateSidebarProps) {
   const { currentProfile } = useIdentitySystem();
   const id = currentProfile.principal.toString();
@@ -131,7 +129,7 @@ export default function TemplateSidebar({
 
         <div className="profile">
           <img src={'/ghost-white.png'} alt={'logo'} className={'profile-icon'}></img>
-          {profile?.nickname || "Anon"}
+          {currentProfile?.principal.toString() || "Anon"}
           {id && (
               <div
                   className={`copy-box ${showCopied ? 'copied' : ''}`}

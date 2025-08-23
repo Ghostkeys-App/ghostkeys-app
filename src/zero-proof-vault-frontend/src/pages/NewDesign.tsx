@@ -1,5 +1,3 @@
-// NewDesign.tsx
-import { useIdentitySystem } from "../utility/identity";
 import "../styles/theme.scss";
 import TemplateSidebar, {TemplateKey} from "../components/new-design/NewSidebar.tsx";
 import React from "react";
@@ -15,7 +13,6 @@ const pathToKey = (p: string): TemplateKey =>
         p.startsWith("/spreadsheet")   ? "grid"   : "logins";
 
 export default function NewDesign() {
-  const { currentProfile, currentVault } = useIdentitySystem();
   const location = useLocation();
   const navigate = useNavigate();
   const selected = pathToKey(location.pathname);
@@ -24,7 +21,6 @@ export default function NewDesign() {
       <div className="main-content">
         <TemplateSidebar
             selected={selected}
-            profile={currentProfile}
             onSelect={(key) => navigate(ROUTES[key])}
         />
         <div style={{flex: 1, minWidth: 0, position: 'relative'}}>

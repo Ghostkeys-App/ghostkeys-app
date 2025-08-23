@@ -1,20 +1,21 @@
-// WebsiteLogins.tsx — entries-only, IDB-backed, no useState for data
-
-import React from "react";
+import React, {useMemo} from "react";
 import { Copy, Edit2, Trash2, Plus } from "lucide-react";
 import funnyGhostIcon from "../../../public/funny-ghost.svg";
-import { ghostkeysStorage } from "../../storage/IDBService.ts";
 import { useIdentitySystem } from "../../utility/identity";
-import GKFormModal, { GKField } from "./GKFormModal";
+import GKFormModal from "./GKFormModal";
 import AddSiteModal from "./AddSiteModal";
-import { useAPIContext } from "../../utility/api/APIContext.tsx";
+import {useAPIContext} from "../../utility/api/APIContext.tsx";
+import {
+  FlexGridDataKey,
+  VaultData as BEVaultData
+} from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
+import {
+  useVaultProviderActions,
+  useVaultProviderState, VaultData,
+  WebsiteLogin,
+  WebsiteLoginEntry
+} from "../../utility/vault-provider";
 import { aesDecrypt, aesEncrypt, deriveFinalKey, deriveSignatureFromPublicKey } from "../../utility/crypto/encdcrpt.ts";
-import { VaultData } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
-
-type Site = {
-  name: string;
-  entries: Array<{ login: string; password: string }>;
-};
 
 function siteIconFor(name: string): string | undefined {
   const n = name.trim().toLowerCase();
@@ -28,136 +29,109 @@ function siteIconFor(name: string): string | undefined {
 }
 
 export default function WebsiteLogins(): JSX.Element {
+  const { currentProfile } = useIdentitySystem();
+  const userId = currentProfile.principal.toString();
+  const apiContext = useAPIContext();
+
+  const { vaults, currentVault, currentVaultId } = useVaultProviderState();
+  const { createVault, deleteVault, switchVault, saveLoginsToIDB, syncVaultWithBackend } = useVaultProviderActions();
+  const { getSharedVaultCanisterAPI, getVetKDDerivedKey } = useAPIContext();
+
+  const websiteLogins: WebsiteLogin[] = currentVault?.data.website_logins || [];
+  const synced = useMemo(
+      () => currentVault?.synced,
+      [currentVault]
+  );
+
   const [openAddSite, setOpenAddSite] = React.useState(false);
   const [openAddEntryForIdx, setOpenAddEntryForIdx] = React.useState<number | null>(null);
-  const { currentProfile } = useIdentitySystem();
-  const { getSharedVaultCanisterAPI, getVetKDDerivedKey } = useAPIContext();
-  const userId = currentProfile.principal.toString();   // same pattern as SpreadsheetCanvas
-  const vaultId = "default";
-
-  // ---- Model (no React state for data) ----
-  const modelRef = React.useRef<{ sites: Site[] }>({ sites: [] });
-
-  // force re-render when model changes (like a "draw" in the canvas)
-  const [tick, setTick] = React.useState(0);
-  const rerender = () => setTick((t) => t + 1);
 
   // UI-only states
   const [q, setQ] = React.useState("");
   const [toastMsg, setToastMsg] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
 
-  // ---- Load from IDB on mount ----
-  React.useEffect(() => {
-    (async () => {
-      if (!userId) return; // no profile yet → skip (same behavior as SpreadsheetCanvas)
-      const sites = await ghostkeysStorage.getWebsiteLogins(userId, vaultId);
-      modelRef.current.sites = sites ?? [];
-      rerender();
-    })();
-  }, [userId]);
-
-  // ---- Save helper (like saveSpreadsheetToIDB) ----
-  async function saveWebsiteLoginsToIDB() {
-    if (!userId) return;
+  async function saveWebsiteLoginsToIDB(websiteLogins: WebsiteLogin[]) {
     setSaving(true);
+
     try {
-      await ghostkeysStorage.setWebsiteLogins(userId, vaultId, modelRef.current.sites);
+      await saveLoginsToIDB(websiteLogins);
       toast("Saved");
     } finally {
       setSaving(false);
     }
   }
 
-  // ---- Export (JSON) ----
-  function exportJson() {
-    const blob = new Blob([JSON.stringify(modelRef.current.sites, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "website-logins.json";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  // ---- Toast ----
-  function toast(msg: string) {
-    setToastMsg(msg);
-    window.setTimeout(() => setToastMsg(null), 1200);
-  }
-
-  // ---- Derived (filter on render; data lives in ref) ----
-  const filtered: Site[] = React.useMemo(() => {
-    const all = modelRef.current.sites;
-    const needle = q.trim().toLowerCase();
-    if (!needle) return all;
-    return all.filter(
-        (s) =>
-            s.name.toLowerCase().includes(needle) ||
-            s.entries.some((e) => e.login.toLowerCase().includes(needle))
-    );
-    // depend on tick so recompute after mutations
-  }, [q, tick]);
+  // // ---- Derived (filter on render; data lives in ref) ----
+  // const filtered: Site[] = React.useMemo(() => {
+  //   const all = modelRef.current.sites;
+  //   const needle = q.trim().toLowerCase();
+  //   if (!needle) return all;
+  //   return all.filter(
+  //       (s) =>
+  //           s.name.toLowerCase().includes(needle) ||
+  //           s.entries.some((e) => e.login.toLowerCase().includes(needle))
+  //   );
+  //   // depend on tick so recompute after mutations
+  // }, [q, tick]);
 
   function renameSite(idx: number) {
-    const cur = modelRef.current.sites[idx];
-    if (!cur) return;
-    const name = prompt("Rename site", cur.name)?.trim();
+    const sitesShallow = websiteLogins.slice();
+    const site: WebsiteLogin | undefined = sitesShallow[idx];
+    if (!site) return;
+    const name = prompt("Rename site", site.name)?.trim();
     if (!name) return;
-    const next = modelRef.current.sites.slice();
-    next[idx] = { ...next[idx], name };
-    modelRef.current.sites = next;
-    rerender();
-    saveWebsiteLoginsToIDB();
+
+    sitesShallow[idx] = { ...site, name };
+    saveWebsiteLoginsToIDB(sitesShallow);
   }
 
-  function deleteSite(idx: number) {
-    const cur = modelRef.current.sites[idx];
-    if (!cur) return;
-    if (!confirm(`Delete “${cur.name}” and all its entries?`)) return;
-    const next = modelRef.current.sites.filter((_, i) => i !== idx);
-    modelRef.current.sites = next;
-    rerender();
-    saveWebsiteLoginsToIDB();
+  async function deleteSite(idx: number) {
+    const siteToDelete = websiteLogins[idx];
+
+    if (!siteToDelete) return;
+    if (!confirm(`Delete “${siteToDelete.name}” and all its entries?`)) return;
+
+    const filteredSites: WebsiteLogin[] = websiteLogins.filter((_, i) => i !== idx);
+    saveWebsiteLoginsToIDB(filteredSites);
   }
 
   function editEntry(siteIdx: number, entryIdx: number) {
-    const next = modelRef.current.sites.slice();
-    const site = next[siteIdx];
+    const sitesShallow: WebsiteLogin[] = websiteLogins.slice();
+    const site: WebsiteLogin | undefined = sitesShallow[siteIdx];
     const entry = site?.entries?.[entryIdx];
+
     if (!site || !entry) return;
 
     const login = prompt("Edit login", entry.login)?.trim();
     if (login == null) return;
     const password = prompt("Edit password (leave blank to keep)", entry.password)?.trim();
 
-    const newEntry = {
+    const newEntry: WebsiteLoginEntry = {
       login,
-      password: password === "" ? entry.password : (password ?? entry.password),
+      password: password ?? entry.password,
     };
     const newEntries = site.entries.slice();
     newEntries[entryIdx] = newEntry;
 
-    next[siteIdx] = { ...site, entries: newEntries };
-    modelRef.current.sites = next;
-    rerender();
-    saveWebsiteLoginsToIDB();
+    sitesShallow[siteIdx] = { ...site, entries: newEntries };
+    saveWebsiteLoginsToIDB(sitesShallow);
   }
 
   function deleteEntry(siteIdx: number, entryIdx: number) {
-    const site = modelRef.current.sites[siteIdx];
+    const sitesShallow: WebsiteLogin[] = websiteLogins.slice();
+    const site: WebsiteLogin | undefined = sitesShallow[siteIdx];
     const entry = site?.entries?.[entryIdx];
+
     if (!site || !entry) return;
     if (!confirm(`Delete entry “${entry.login}” from ${site.name}?`)) return;
 
-    const next = modelRef.current.sites.slice();
-    next[siteIdx] = { ...site, entries: site.entries.filter((_, j) => j !== entryIdx) };
-    modelRef.current.sites = next;
-    rerender();
-    saveWebsiteLoginsToIDB();
+    sitesShallow[siteIdx] = { ...site, entries: site.entries.filter((_, j) => j !== entryIdx) };
+    saveWebsiteLoginsToIDB(sitesShallow);
   }
 
   async function copyPassword(siteIdx: number, entryIdx: number) {
-    const pwd = modelRef.current.sites?.[siteIdx]?.entries?.[entryIdx]?.password ?? "";
+    const pwd = websiteLogins?.[siteIdx]?.entries?.[entryIdx]?.password ?? "";
     if (!pwd) return;
     try {
       await navigator.clipboard.writeText(pwd);
@@ -167,66 +141,84 @@ export default function WebsiteLogins(): JSX.Element {
     }
   }
 
-    // Testing backend canister | THIS IS ONLY FOR TESTING
-    const makeCallToEncryptAndSaveDataToVault = async () => {
-      console.log("Testing canister calls");
-      // const vaultId = "frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe";
-      const vaultId = 'hnw7b-wb3el-olaeb-7tct5-kzljq-kx5dx-krvfw-lsfbn-fdjc4-t5bp5-xae';
-      console.log('user', userId);
-      console.log('vault', vaultId);
+  async function sync () {
+    await syncVaultWithBackend();
+  }
 
-      // Keys
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(websiteLogins, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "website-logins.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 
-      const vetKD = await getVetKDDerivedKey();
-      const vaultKD = await deriveSignatureFromPublicKey(vaultId, currentProfile.identity);
-      const fnKD = await deriveFinalKey(vaultKD, vetKD);
-      
+  function toast(msg: string) {
+    setToastMsg(msg);
+    window.setTimeout(() => setToastMsg(null), 1200);
+  }
 
-      // Data to encrypt
-      const vaultName = await aesEncrypt('Vault1', fnKD);
-      const colName = await aesEncrypt("Col1", fnKD);
-      const noteName = await aesEncrypt("Secure", fnKD);
-      const noteSecret = await aesEncrypt("Note", fnKD);
-      const spreadsheetValue = await aesEncrypt("Value", fnKD);
-      const websiteName = await aesEncrypt("Google", fnKD);
-      const websiteUser = await aesEncrypt('test', fnKD);
-      const websitePass = await aesEncrypt('pass', fnKD);
+  // Testing backend canister | THIS IS ONLY FOR TESTING
+  const makeCallToEncryptAndSaveDataToVault = async () => {
+    console.log("Testing canister calls");
+    // const vaultId = "frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe";
+    const vaultId = 'hnw7b-wb3el-olaeb-7tct5-kzljq-kx5dx-krvfw-lsfbn-fdjc4-t5bp5-xae';
+    console.log('user', userId);
+    console.log('vault', vaultId);
 
-      const data: VaultData = {
-        'vault_name': vaultName,
-        'flexible_grid_columns': [[colName, [1, true]]],
-        'secure_notes': [[noteName, noteSecret]],
-        'flexible_grid': [[{'col': 1, row: 2}, spreadsheetValue]],
-        'website_logins': [[websiteName, [[websiteUser, websitePass]]]],
-      };
-      console.log('data before', data);
-      const sharedActor = await getSharedVaultCanisterAPI();
-      const addToShared = await sharedActor.add_or_update_vault(userId, vaultId.toString(), data);
-      console.log(addToShared);
-      
-      const getData = (await sharedActor.get_vault(userId, vaultId))[0];
-      console.log("data for user", getData);
+    // Keys
 
-      if(getData) {
-        const encryptedName = getData.vault_name;
-        console.log("encryptedName", encryptedName);
-        const decryptedName = await aesDecrypt(encryptedName, fnKD);
-        console.log('decryptedName', decryptedName);
-      }
+    const vetKD = await getVetKDDerivedKey();
+    const vaultKD = await deriveSignatureFromPublicKey(vaultId, currentProfile.identity);
+    const fnKD = await deriveFinalKey(vaultKD, vetKD);
 
-      console.log('deleting vault', vaultId);
-      await sharedActor.delete_vault(userId, vaultId);
-      const getData2 = (await sharedActor.get_vault(userId, vaultId))[0];
-      console.log("data for user", getData2);
 
-      const getData3 = (await sharedActor.get_vault(userId, 'frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe'))[0];
-      console.log("data for user", getData3);
+    // Data to encrypt
+    const vaultName = await aesEncrypt('Vault1', fnKD);
+    const colName = await aesEncrypt("Col1", fnKD);
+    const noteName = await aesEncrypt("Secure", fnKD);
+    const noteSecret = await aesEncrypt("Note", fnKD);
+    const spreadsheetValue = await aesEncrypt("Value", fnKD);
+    const websiteName = await aesEncrypt("Google", fnKD);
+    const websiteUser = await aesEncrypt('test', fnKD);
+    const websitePass = await aesEncrypt('pass', fnKD);
 
-      await sharedActor.clear_all_user_vaults(userId);
+    const data: VaultData = {
+      'vault_name': vaultName,
+      'flexible_grid_columns': [[colName, [1, true]]],
+      'secure_notes': [[noteName, noteSecret]],
+      'flexible_grid': [[{'col': 1, row: 2}, spreadsheetValue]],
+      'website_logins': [[websiteName, [[websiteUser, websitePass]]]],
+    };
+    console.log('data before', data);
+    const sharedActor = await getSharedVaultCanisterAPI();
+    const addToShared = await sharedActor.add_or_update_vault(userId, vaultId.toString(), data);
+    console.log(addToShared);
 
-      const getData4 = (await sharedActor.get_vault(userId, 'frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe'))[0];
-      console.log("data for user", getData4);
+    const getData = (await sharedActor.get_vault(userId, vaultId))[0];
+    console.log("data for user", getData);
+
+    if(getData) {
+      const encryptedName = getData.vault_name;
+      console.log("encryptedName", encryptedName);
+      const decryptedName = await aesDecrypt(encryptedName, fnKD);
+      console.log('decryptedName', decryptedName);
     }
+
+    console.log('deleting vault', vaultId);
+    await sharedActor.delete_vault(userId, vaultId);
+    const getData2 = (await sharedActor.get_vault(userId, vaultId))[0];
+    console.log("data for user", getData2);
+
+    const getData3 = (await sharedActor.get_vault(userId, 'frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe'))[0];
+    console.log("data for user", getData3);
+
+    await sharedActor.clear_all_user_vaults(userId);
+
+    const getData4 = (await sharedActor.get_vault(userId, 'frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe'))[0];
+    console.log("data for user", getData4);
+  }
 
   return (
       <section className="website-logins">
@@ -240,7 +232,9 @@ export default function WebsiteLogins(): JSX.Element {
                 <Plus size={16} /> Add site
               </button>
               <button className="gk-btn gk-btn-export" onClick={exportJson}>Export</button>
-              <button className="gk-btn gk-btn-save" onClick={makeCallToEncryptAndSaveDataToVault}>Save</button>
+              <button className={`gk-btn gk-btn-save ${!synced ? 'not-synced' : ''}`} onClick={sync}>
+                {'Save' + (!synced ? '(not synced changes detected)' : '')}
+              </button>
             </div>
           </div>
 
@@ -255,7 +249,7 @@ export default function WebsiteLogins(): JSX.Element {
         </div>
 
         <div className="website-logins-grid">
-          {filtered.length === 0 ? (
+          {websiteLogins.length === 0 ? (
               <div className="empty-state">
                 <div className="ghost-float" style={{ fontSize: 64 }}>
                   <img src={funnyGhostIcon} />
@@ -266,7 +260,7 @@ export default function WebsiteLogins(): JSX.Element {
                 </button>
               </div>
           ) : (
-              filtered.map((site, i) => (
+              websiteLogins.map((site, i) => (
                   <article key={`${site.name}-${i}`} className="login-card" aria-label={`${site.name} logins`}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       {siteIconFor(site.name) ? (
@@ -320,23 +314,20 @@ export default function WebsiteLogins(): JSX.Element {
           )}
         </div>
 
-        {/* Add Site */}
-        <GKFormModal
-            open={openAddSite}
-            title="Add website"
-            description="Group multiple credentials under a single site."
-            onClose={() => setOpenAddSite(false)}
-            okLabel="Create"
-            fields={[
-              { name: "site", label: "Website name", placeholder: "e.g. Google", required: true },
-            ]}
-            onSubmit={({ site }) => {
-              modelRef.current.sites = [{ name: site, entries: [] }, ...modelRef.current.sites];
-              setOpenAddSite(false);
-              rerender();
-              saveWebsiteLoginsToIDB();
-            }}
-        />
+        {/*/!* Add Site *!/*/}
+        {/*<GKFormModal*/}
+        {/*    open={openAddSite}*/}
+        {/*    title="Add website"*/}
+        {/*    description="Group multiple credentials under a single site."*/}
+        {/*    onClose={() => setOpenAddSite(false)}*/}
+        {/*    okLabel="Create"*/}
+        {/*    fields={[*/}
+        {/*      { name: "site", label: "Website name", placeholder: "e.g. Google", required: true },*/}
+        {/*    ]}*/}
+        {/*    onSubmit={({ site }) => {*/}
+        {/*      saveWebsiteLoginsToIDB([{ name: site, entries: [] }, ...websiteLogins]);*/}
+        {/*    }}*/}
+        {/*/>*/}
 
         {/* Add Entry */}
         <GKFormModal
@@ -351,13 +342,11 @@ export default function WebsiteLogins(): JSX.Element {
             ]}
             onSubmit={({ login, password }) => {
               const idx = openAddEntryForIdx!;
-              const next = modelRef.current.sites.slice();
-              const site = next[idx];
+              const sitesShallow = websiteLogins.slice();
+              const site = sitesShallow[idx];
               if (site) {
-                next[idx] = { ...site, entries: [{ login, password }, ...site.entries] };
-                modelRef.current.sites = next;
-                rerender();
-                saveWebsiteLoginsToIDB();
+                sitesShallow[idx] = { ...site, entries: [{ login, password }, ...site.entries] };
+                saveWebsiteLoginsToIDB(sitesShallow);
               }
               setOpenAddEntryForIdx(null);
             }}
@@ -367,9 +356,7 @@ export default function WebsiteLogins(): JSX.Element {
             open={openAddSite}
             onClose={() => setOpenAddSite(false)}
             onCreate={(siteName) => {
-              modelRef.current.sites = [{ name: siteName, entries: [] }, ...modelRef.current.sites];
-              rerender();
-              saveWebsiteLoginsToIDB();
+              saveWebsiteLoginsToIDB([{ name: siteName, entries: [] }, ...websiteLogins]);
             }}
         />
 

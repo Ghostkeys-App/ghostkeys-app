@@ -11,21 +11,13 @@ import {
   DB_NAME,
   DB_VERSION,
   PROFILES_STORE,
-  VAULTS_STORE,
 } from "./constants";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
 import { Principal } from "@dfinity/principal";
 import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
 import { derivePrincipalAndIdentityFromSeed, generateSeedAndIdentityPrincipal } from "../crypto/encdcrpt";
 
-// Interfaces for Vault and User Profile
-export type Vault = {
-  vaultID: string;
-  nickname: string;
-  icpPublicAddress: string;
-  endpoint: string;
-};
-
+// Interfaces for User Profile
 export type UserProfile = {
   userID: string;
   seedPhrase: string;
@@ -34,12 +26,7 @@ export type UserProfile = {
 };
 
 export type IdentityContextType = {
-  currentVault: Vault | null;
   currentProfile: UserProfile;
-  createVault: (nickname: string) => Promise<Vault>;
-  switchVault: (vault: Vault) => void;
-  renameVault: (vaultID: string, newName: string) => Vault | undefined;
-  listVaults: () => Promise<Vault[]>;
   createProfileFromSeed: (seed: string) => Promise<UserProfile>;
   switchProfile: (profile: UserProfile) => Promise<void>;
 };
@@ -54,7 +41,6 @@ const IdentityContext = createContext<IdentityContextType | undefined>(undefined
 export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   const db = useRef<IDBDatabase | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const [currentVault, setCurrentVault] = useState<Vault | null>(null);
   const [currentProfile, setCurrentProfile] = useState<UserProfile>({} as any); // as any because there is no circumstances where currentProfile is used and could be possibly undefined
 
   useEffect(() => {
@@ -63,9 +49,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
 
       request.onupgradeneeded = (e) => {
         const db = (e.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(VAULTS_STORE)) {
-          db.createObjectStore(VAULTS_STORE, { keyPath: "vaultID" });
-        }
+
         if (!db.objectStoreNames.contains(PROFILES_STORE)) {
           db.createObjectStore(PROFILES_STORE, { keyPath: "userID" });
         }
@@ -111,7 +95,6 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     });
   }
 
-
   const createProfileFromSeed = useCallback(async (existingSeed?: string): Promise<UserProfile> => {
     let seed, principal, identity;
     if (existingSeed) {
@@ -145,57 +128,8 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     setCurrentProfile(profile);
   };
 
-  const createVault = async (nickname: string): Promise<Vault> => {
-    if (!currentProfile) throw new Error("No profile set");
-
-    const { principal } = await generateSeedAndIdentityPrincipal();
-    const vaultID = `Vault_${principal.toString()}`;
-    const newVault: Vault = {
-      vaultID,
-      nickname,
-      icpPublicAddress: principal.toString(),
-      endpoint: "",
-    };
-    if (!db.current) throw new Error("DB not initialized");
-    const tx = db.current.transaction(VAULTS_STORE, "readwrite");
-    tx.objectStore(VAULTS_STORE).put(newVault);
-    return newVault;
-  };
-
-  const renameVault = (vaultID: string, newName: string) => {
-    if (!db.current) throw new Error("DB not initialized");
-    if (!currentProfile) throw new Error("No profile set");
-    const tx = db.current.transaction(VAULTS_STORE, "readwrite");
-    const store = tx.objectStore(VAULTS_STORE);
-    const vault = store.get(vaultID) as unknown as Vault | undefined;
-    if (vault) {
-      vault.nickname = newName;
-      store.put(vault);
-    }
-    return vault;
-  }
-
-  const switchVault = (vault: Vault) => {
-    setCurrentVault(vault);
-  };
-
-  const listVaults = async (): Promise<Vault[]> => {
-    if (!db.current) throw new Error("DB not initialized");
-    const tx = db.current.transaction(VAULTS_STORE, "readonly");
-    const req = tx.objectStore(VAULTS_STORE).getAll();
-    return new Promise((resolve, reject) => {
-      req.onsuccess = () => resolve(req.result as Vault[]);
-      req.onerror = () => reject("Failed to list vaults");
-    });
-  };
-
   const contextValue: IdentityContextType = {
-    currentVault,
     currentProfile,
-    createVault,
-    switchVault,
-    renameVault,
-    listVaults,
     createProfileFromSeed,
     switchProfile,
   };
