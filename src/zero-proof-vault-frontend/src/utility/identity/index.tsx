@@ -130,7 +130,9 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     tx.objectStore(PROFILES_STORE).put(profile);
   };
 
+  // User Profile UI on Import SEED Phrase
   const switchProfile = async (profile: UserProfile) => {
+    // TODO: Logic to derive profile from seed call existing method
     setCurrentProfile(profile);
   };
 
