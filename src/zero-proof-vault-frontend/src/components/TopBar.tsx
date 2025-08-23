@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useIdentitySystem } from "../utility/identity";
 import "../styles/theme.scss";
-import { useVaultProvider } from "../utility/vault-provider";
+// import { useVaultProvider } from "../utility/vault-provider";
 
 interface TopBarProps {
   profile: any;
@@ -10,10 +10,10 @@ interface TopBarProps {
 
 export default function TopBar({ profile, selected }: TopBarProps) {
   const { currentProfile } = useIdentitySystem();
-  const id = currentProfile?.icpPublicKey || "";
+  const id = currentProfile.principal.toString();
   const [showCopied, setShowCopied] = useState(false);
 
-  const { syncVaultsWithBackend } = useVaultProvider();
+  // const { syncVaultsWithBackend } = useVaultProvider();
 
 
   const shortenId = (id: string): string => {
@@ -58,7 +58,7 @@ export default function TopBar({ profile, selected }: TopBarProps) {
 
   const saveToChain = async () => {
     try {
-      await syncVaultsWithBackend();
+      // await syncVaultsWithBackend();
       alert("Vaults synced to chain");
     } catch (err) {
       console.error("Sync failed", err);

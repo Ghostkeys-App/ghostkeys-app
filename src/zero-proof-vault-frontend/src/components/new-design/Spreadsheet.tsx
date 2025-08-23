@@ -25,7 +25,7 @@ type ColumnMeta = { name: string; masked: boolean };
 
 export default function SpreadsheetCanvas(): JSX.Element {
   const { currentProfile } = useIdentitySystem();
-  const id = currentProfile?.icpPublicKey || "";
+  const id = currentProfile.principal.toString();
   const currentVaultId = "default";
 
   // Sparse model + column metadata
@@ -1096,6 +1096,7 @@ export default function SpreadsheetCanvas(): JSX.Element {
     console.log('user', userId);
     console.log('vault', vaultId);
     const data: VaultData = {
+      'vault_name': 'Vault1',
       'flexible_grid_columns': [['Col1', [1, true]]],
       'secure_notes': [['Secure', 'Note']],
       'flexible_grid': [[{'col': 1, row: 2}, 'Value']],

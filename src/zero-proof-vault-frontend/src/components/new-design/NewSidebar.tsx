@@ -50,7 +50,7 @@ export default function TemplateSidebar({
                                           profile,
                                         }: TemplateSidebarProps) {
   const { currentProfile } = useIdentitySystem();
-  const id = currentProfile?.icpPublicKey || "";
+  const id = currentProfile.principal.toString();
   const [showCopied, setShowCopied] = useState(false);
 
   const copyToClipboard = async () => {

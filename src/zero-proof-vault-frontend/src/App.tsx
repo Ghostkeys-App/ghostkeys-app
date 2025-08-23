@@ -10,7 +10,7 @@ import {mockApi} from "./api/APIService.ts";
 
 export default function App() {
   const { currentProfile } = useIdentitySystem();
-  const id = currentProfile?.icpPublicKey || "";
+  const id = currentProfile.principal.toString();
   const currentVaultId = "default";
 
   React.useEffect(() => {

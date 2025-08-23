@@ -28,7 +28,7 @@ export default function WebsiteLogins(): JSX.Element {
   const [openAddSite, setOpenAddSite] = React.useState(false);
   const [openAddEntryForIdx, setOpenAddEntryForIdx] = React.useState<number | null>(null);
   const { currentProfile } = useIdentitySystem();
-  const userId = currentProfile?.icpPublicKey || "";   // same pattern as SpreadsheetCanvas
+  const userId = currentProfile.principal.toString();   // same pattern as SpreadsheetCanvas
   const vaultId = "default";
 
   // ---- Model (no React state for data) ----

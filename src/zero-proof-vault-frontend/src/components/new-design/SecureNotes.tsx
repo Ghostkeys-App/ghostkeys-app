@@ -20,7 +20,7 @@ const uid = () =>
 
 export default function SecurityNotes(): JSX.Element {
   const { currentProfile } = useIdentitySystem();
-  const userId = currentProfile?.icpPublicKey || "";
+  const userId = currentProfile.principal.toString();
   const vaultId = "default";
 
   const modelRef = React.useRef<{ notes: Note[] }>({ notes: [] });
