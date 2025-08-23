@@ -1,9 +1,10 @@
-import { createContext, ReactNode, useContext, useState } from "react";
+import { createContext, ReactNode, useContext, useEffect, useState } from "react";
 import { FactoryCanisterAPI, getOrCreateFactoryCanisterActor, getOrCreateSharedCanisterActor, SharedCanisterAPI } from ".";
 import { Principal } from "@dfinity/principal";
 import { useIdentitySystem } from "../identity";
 import { GhostkeysVetKdArgs } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 import { generateGhostKeysArgs } from "../crypto/encdcrpt";
+import { HttpAgent } from "@dfinity/agent";
 
 export type APIContextType = {
     getFactoryCanisterAPI: () => Promise<FactoryCanisterAPI>;
@@ -19,7 +20,19 @@ const APIContext = createContext<APIContextType | undefined>(undefined);
 export function APIContextProvider({ children }: { children: ReactNode }) {
     const [sharedVaultCanisterId, setSharedVaultCanisterId] = useState<Principal>();
     const [vetKDDerivedKey, setVetKDDerivedKey] = useState<Uint8Array>();
+    const [factoryHTTPAgent, setFactoryHTTPAgent] = useState<HttpAgent>();
+    const [sharedHTTPAgent, setSharedHTTPAgent] = useState<HttpAgent>();
     const { currentProfile } = useIdentitySystem();
+
+    useEffect(() => {
+        const init = async () => {
+            const fAgent = await HttpAgent.create({identity: currentProfile.identity});
+            setFactoryHTTPAgent(fAgent);
+            const sAgent = await HttpAgent.create({identity: currentProfile.identity});
+            setSharedHTTPAgent(sAgent);
+        }
+        init();
+    }, []);
 
     // Helpers
     const interrogateFactoryForSharedCanister = async (): Promise<Principal> => {
@@ -33,11 +46,14 @@ export function APIContextProvider({ children }: { children: ReactNode }) {
         let validVetKD: Uint8Array;
         const apiToCall = await getSharedVaultCanisterAPI();
         const vetKD = (await apiToCall.get_vetkey_for_user(currentProfile.principal.toString()))[0];
+        console.log("key exists on canister", vetKD);
         if (vetKD)
             validVetKD = new Uint8Array(vetKD);
         else {
             const vetKDArgs: GhostkeysVetKdArgs = await generateGhostKeysArgs(currentProfile.principal);
+            console.log("GhostkeysVetKdArgs", vetKDArgs);
             const derivedVetKD = await apiToCall.derive_vetkd_encrypted_key(vetKDArgs);
+            console.log("Get new key", derivedVetKD);
             if ('Ok' in derivedVetKD)
                 validVetKD = new Uint8Array(derivedVetKD.Ok);
             else {
@@ -52,17 +68,18 @@ export function APIContextProvider({ children }: { children: ReactNode }) {
     // Context Methods
     const getFactoryCanisterAPI = async (): Promise<FactoryCanisterAPI> => {
         const factoryCanisterId = process.env.CANISTER_ID_FACTORY_CANISTER_BACKEND ?? 'not-found';
-        const factoryActorAPI = await getOrCreateFactoryCanisterActor(factoryCanisterId);
+        const factoryActorAPI = await getOrCreateFactoryCanisterActor(factoryCanisterId, factoryHTTPAgent);
         return factoryActorAPI;
     }
 
     const getSharedVaultCanisterAPI = async (): Promise<SharedCanisterAPI> => {
         const sharedCanisterId = sharedVaultCanisterId ?? await interrogateFactoryForSharedCanister();
-        const sharedActorAPI = await getOrCreateSharedCanisterActor(sharedCanisterId);
+        const sharedActorAPI = await getOrCreateSharedCanisterActor(sharedCanisterId, sharedHTTPAgent);
         return sharedActorAPI;
     }
 
     const getVetKDDerivedKey = async (): Promise<Uint8Array> => {
+        console.log("key already exists", vetKDDerivedKey);
         const vetKD = vetKDDerivedKey ?? await interrogateSharedForVetKey();
         return vetKD;
     }

@@ -5,6 +5,7 @@ import { ghostkeysStorage } from "../../storage/IDBService.ts";
 import { useIdentitySystem } from "../../utility/identity";
 import { generateSeedAndIdentityPrincipal } from "../../utility/crypto/encdcrpt.ts";
 import { VaultData } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
+import { useAPIContext } from "../../utility/api/APIContext.tsx";
 
 type CellKey = string; // "r,c"
 const keyOf = (r: number, c: number): CellKey => `${r},${c}`;
@@ -25,6 +26,7 @@ type ColumnMeta = { name: string; masked: boolean };
 
 export default function SpreadsheetCanvas(): JSX.Element {
   const { currentProfile } = useIdentitySystem();
+  const { getSharedVaultCanisterAPI } = useAPIContext();
   const id = currentProfile.principal.toString();
   const currentVaultId = "default";
 
@@ -1085,15 +1087,9 @@ export default function SpreadsheetCanvas(): JSX.Element {
   // Testing backend canister | THIS IS ONLY FOR TESTING
   const makeCallToFactory = async () => {
     console.log("Testing canister calls");
-    const agent = await HttpAgent.create();
-    const factoryActor = await getOrCreateFactoryCanisterActor("uxrrr-q7777-77774-qaaaq-cai", agent);
-    console.log(factoryActor);
-    const testCreatingSharedCanister = await factoryActor.get_shared_vault();
-    console.log(testCreatingSharedCanister);
-    const sharedActor = await getOrCreateSharedCanisterActor(testCreatingSharedCanister, agent);
-    const { principal: userId } = await generateSeedAndIdentityPrincipal();
+
     const { principal: vaultId } = await generateSeedAndIdentityPrincipal();
-    console.log('user', userId);
+    console.log('user', id);
     console.log('vault', vaultId);
     const data: VaultData = {
       'vault_name': 'Vault1',
@@ -1103,10 +1099,11 @@ export default function SpreadsheetCanvas(): JSX.Element {
       'website_logins': [['Google', [['test', 'pass']]]],
     };
     console.log('data before', data);
-    const addToShared = await sharedActor.add_or_update_vault(userId.toString(), vaultId.toString(), data);
+    const sharedActor = await getSharedVaultCanisterAPI();
+    const addToShared = await sharedActor.add_or_update_vault(id, vaultId.toString(), data);
     console.log(addToShared);
     
-    const getData = await sharedActor.get_all_vaults_for_user(userId.toString());
+    const getData = await sharedActor.get_all_vaults_for_user(id);
     console.log("data for user", getData);
   }
 

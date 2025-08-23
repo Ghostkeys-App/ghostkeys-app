@@ -44,6 +44,11 @@ export type IdentityContextType = {
   switchProfile: (profile: UserProfile) => Promise<void>;
 };
 
+type indexDBProfile = {
+  userID: string;
+  seedPhrase: string;
+}
+
 const IdentityContext = createContext<IdentityContextType | undefined>(undefined);
 
 export function IdentitySystemProvider({ children }: { children: ReactNode }) {
@@ -77,9 +82,10 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const bootstrap = async () => {
-    const profile: UserProfile | undefined = await getUserProfile();
-    if (profile && profile.seedPhrase && profile.identity && profile.principal) {
-      setCurrentProfile(profile);
+    const profile: indexDBProfile | undefined = await getUserProfile();
+    if (profile && profile.seedPhrase && profile.userID) {
+      const innerProfile = await createProfileFromSeed(profile.seedPhrase);
+      setCurrentProfile(innerProfile);
     } else {
       const profile = await createProfileFromSeed();
       await saveProfile(profile);
@@ -91,14 +97,13 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     if (!db.current) throw new Error("DB not initialized");
     const tx = db.current.transaction(PROFILES_STORE, "readwrite");
 
-    return new Promise<UserProfile | undefined>((resolve, reject) => {
+    return new Promise<indexDBProfile | undefined>((resolve, reject) => {
       const req = tx.objectStore(PROFILES_STORE).getAll();
       req.onsuccess = () => {
-        const userProfile: UserProfile = {
-          userID: req.result?.[0]?.userID,
-          seedPhrase: req.result?.[0]?.seedPhrase,
-          identity: req.result?.[0]?.identity,
-          principal: req.result?.[0]?.principal
+        const indexedData = req.result[0];
+        const userProfile: indexDBProfile = {
+          userID: indexedData?.userID,
+          seedPhrase: indexedData?.seedPhrase,
         }
         resolve(userProfile);
       }
@@ -127,7 +132,11 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   const saveProfile = async (profile: UserProfile) => {
     if (!db.current) throw new Error("DB not initialized");
     const tx = db.current.transaction(PROFILES_STORE, "readwrite");
-    tx.objectStore(PROFILES_STORE).put(profile);
+    const iProfile: indexDBProfile = {
+      userID: profile.userID,
+      seedPhrase: profile.seedPhrase
+    }
+    tx.objectStore(PROFILES_STORE).put(iProfile);
   };
 
   // User Profile UI on Import SEED Phrase

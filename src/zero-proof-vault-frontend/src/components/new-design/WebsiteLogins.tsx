@@ -7,6 +7,9 @@ import { ghostkeysStorage } from "../../storage/IDBService.ts";
 import { useIdentitySystem } from "../../utility/identity";
 import GKFormModal, { GKField } from "./GKFormModal";
 import AddSiteModal from "./AddSiteModal";
+import { useAPIContext } from "../../utility/api/APIContext.tsx";
+import { aesDecrypt, aesEncrypt, deriveFinalKey, deriveSignatureFromPublicKey, generateSeedAndIdentityPrincipal } from "../../utility/crypto/encdcrpt.ts";
+import { VaultData } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 
 type Site = {
   name: string;
@@ -28,6 +31,7 @@ export default function WebsiteLogins(): JSX.Element {
   const [openAddSite, setOpenAddSite] = React.useState(false);
   const [openAddEntryForIdx, setOpenAddEntryForIdx] = React.useState<number | null>(null);
   const { currentProfile } = useIdentitySystem();
+  const { getSharedVaultCanisterAPI, getVetKDDerivedKey } = useAPIContext();
   const userId = currentProfile.principal.toString();   // same pattern as SpreadsheetCanvas
   const vaultId = "default";
 
@@ -163,6 +167,56 @@ export default function WebsiteLogins(): JSX.Element {
     }
   }
 
+    // Testing backend canister | THIS IS ONLY FOR TESTING
+    const makeCallToEncryptAndSaveDataToVault = async () => {
+      console.log("Testing canister calls");
+      const vaultId = "frsi7-vo5vn-mww3z-lxgdi-b32pb-oncz2-fetjn-xpxnl-xp7vf-px6xu-uqe";
+      console.log('user', userId);
+      console.log('vault', vaultId);
+
+      // Keys
+
+      const vetKD = await getVetKDDerivedKey();
+      const vaultKD = await deriveSignatureFromPublicKey(vaultId, currentProfile.identity);
+      const fnKD = await deriveFinalKey(vaultKD, vetKD);
+      
+
+      // Data to encrypt
+      const vaultName = await aesEncrypt('Vault1', fnKD);
+      const colName = await aesEncrypt("Col1", fnKD);
+      const noteName = await aesEncrypt("Secure", fnKD);
+      const noteSecret = await aesEncrypt("Note", fnKD);
+      const spreadsheetValue = await aesEncrypt("Value", fnKD);
+      const websiteName = await aesEncrypt("Google", fnKD);
+      const websiteUser = await aesEncrypt('test', fnKD);
+      const websitePass = await aesEncrypt('pass', fnKD);
+
+      
+
+      const data: VaultData = {
+        'vault_name': vaultName,
+        'flexible_grid_columns': [[colName, [1, true]]],
+        'secure_notes': [[noteName, noteSecret]],
+        'flexible_grid': [[{'col': 1, row: 2}, spreadsheetValue]],
+        'website_logins': [[websiteName, [[websiteUser, websitePass]]]],
+      };
+      console.log('data before', data);
+      const sharedActor = await getSharedVaultCanisterAPI();
+      const addToShared = await sharedActor.add_or_update_vault(userId, vaultId.toString(), data);
+      console.log(addToShared);
+      
+      const getData = (await sharedActor.get_vault(userId, vaultId))[0];
+      console.log("data for user", getData);
+
+      if(getData) {
+        const encryptedName = getData.vault_name;
+        console.log("encryptedName", encryptedName);
+        const decryptedName = await aesDecrypt(encryptedName, fnKD);
+        console.log('decryptedName', decryptedName);
+      }
+
+    }
+
   return (
       <section className="website-logins">
         <div className="website-logins-header">
@@ -175,7 +229,7 @@ export default function WebsiteLogins(): JSX.Element {
                 <Plus size={16} /> Add site
               </button>
               <button className="gk-btn gk-btn-export" onClick={exportJson}>Export</button>
-              <button className="gk-btn gk-btn-save" onClick={saveWebsiteLoginsToIDB}>Save</button>
+              <button className="gk-btn gk-btn-save" onClick={makeCallToEncryptAndSaveDataToVault}>Save</button>
             </div>
           </div>
 
