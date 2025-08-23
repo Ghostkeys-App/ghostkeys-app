@@ -1,9 +1,9 @@
 {
   "canisters": {
     "factory-canister-backend": {
-      "candid": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.4.0/factory-canister-backend.did",
+      "candid": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.5.0/factory-canister-backend.did",
       "type": "custom",
-      "wasm": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.4.0/factory_canister_backend.wasm",
+      "wasm": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.5.0/factory_canister_backend.wasm",
       "metadata": [
         {
           "name": "candid:service"
@@ -15,14 +15,14 @@
     },
     "shared-vault-canister-backend": {
       "type": "custom",
-      "candid": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.3.0/shared-vault-canister-backend.did",
-      "wasm": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.3.0/shared_vault_canister_backend.wasm",
+      "candid": "https://github.com/Ghostkeys-App/vault-canister/releases/download/shared-canister-dev-v0.2.0/shared-vault-canister-backend.did",
+      "wasm": "https://github.com/Ghostkeys-App/vault-canister/releases/download/shared-canister-dev-v0.2.0/shared_vault_canister_backend.wasm",
       "remote": {
         "id": {
           "local": "ryjl3-tyaaa-aaaaa-aaaba-cai",
           "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
         },
-        "candid": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.3.0/shared-vault-canister-backend.did"
+        "candid": "https://github.com/Ghostkeys-App/vault-canister/releases/download/shared-canister-dev-v0.2.0/shared-vault-canister-backend.did"
       },
       "declarations": {
         "env_override": ""
@@ -33,8 +33,8 @@
     },
     "vault-canister-backend": {
       "type": "custom",
-      "candid": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.3.0/vault-canister-backend.did",
-      "wasm": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.3.0/vault_canister_backend.wasm",
+      "candid": "https://github.com/Ghostkeys-App/vault-canister/releases/download/shared-canister-dev-v0.2.0/vault-canister-backend.did",
+      "wasm": "https://github.com/Ghostkeys-App/vault-canister/releases/download/shared-canister-dev-v0.2.0/vault_canister_backend.wasm",
       "remote": {
         "id": {
           "local": "r7inp-6aaaa-aaaaa-aaabq-cai",
@@ -43,7 +43,7 @@
         "declarations": {
           "env_override": ""
         },
-        "candid": "https://github.com/Ghostkeys-App/factory-canister/releases/download/factory-canister-dev-v0.3.0/vault-canister-backend.did"
+        "candid": "https://github.com/Ghostkeys-App/vault-canister/releases/download/shared-canister-dev-v0.2.0/vault-canister-backend.did"
       },
       "post_install": [
         "dfx generate vault-canister-backend"
