@@ -1,4 +1,4 @@
-import {createContext, ReactNode, useCallback, useContext, useEffect, useState} from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { FactoryCanisterAPI, getOrCreateFactoryCanisterActor, getOrCreateSharedCanisterActor, SharedCanisterAPI } from ".";
 import { Principal } from "@dfinity/principal";
 import { useIdentitySystem } from "../identity";
@@ -21,29 +21,38 @@ const APIContext = createContext<APIContextType | undefined>(undefined);
 export function APIContextProvider({ children }: { children: ReactNode }) {
     const [sharedVaultCanisterId, setSharedVaultCanisterId] = useState<Principal>();
     const [vetKDDerivedKey, setVetKDDerivedKey] = useState<Uint8Array>();
-    const [factoryHTTPAgent, setFactoryHTTPAgent] = useState<HttpAgent>();
-    const [sharedHTTPAgent, setSharedHTTPAgent] = useState<HttpAgent>();
     const { currentProfile } = useIdentitySystem();
 
-    useEffect(() => {
-        const init = async () => {
-            const fAgent = await HttpAgent.create({ identity: currentProfile.identity });
-            setFactoryHTTPAgent(fAgent);
-            const sAgent = await HttpAgent.create({ identity: currentProfile.identity });
-            setSharedHTTPAgent(sAgent);
-        }
-        init();
+    useEffect(() => { }, []);
+
+    const factoryAgentRef = useRef<HttpAgent | null>(null);
+    const sharedAgentRef = useRef<HttpAgent | null>(null);
+
+    const getFactoryAgent = useCallback(async (): Promise<HttpAgent> => {
+        if (factoryAgentRef.current) return factoryAgentRef.current;
+        if (!currentProfile.identity) throw new Error("Identity not ready yet");
+        const agent = await HttpAgent.create({ identity: currentProfile.identity });
+        factoryAgentRef.current = agent;
+        return agent;
+    }, [currentProfile]);
+
+    const getSharedAgent = useCallback(async (): Promise<HttpAgent> => {
+        if (sharedAgentRef.current) return sharedAgentRef.current;
+        if (!currentProfile.identity) throw new Error("Identity not ready yet");
+        const agent = await HttpAgent.create({ identity: currentProfile.identity });
+        sharedAgentRef.current = agent;
+        return agent;
     }, [currentProfile]);
 
     // Helpers
-    const interrogateFactoryForSharedCanister = async (): Promise<Principal> => {
+    const interrogateFactoryForSharedCanister = useCallback(async (): Promise<Principal> => {
         const apiToCall = await getFactoryCanisterAPI();
         const sharedCanisterPrincipal = await apiToCall.get_shared_vault();
         setSharedVaultCanisterId(sharedCanisterPrincipal);
         return sharedCanisterPrincipal;
-    }
+    }, [currentProfile, getFactoryAgent]);
 
-    const interrogateSharedForVetKey = async (): Promise<Uint8Array> => {
+    const interrogateSharedForVetKey = useCallback(async (): Promise<Uint8Array> => {
         let validVetKD: Uint8Array;
         const apiToCall = await getSharedVaultCanisterAPI();
         const vetKD = (await apiToCall.get_vetkey_for_user(currentProfile.principal.toString()))[0];
@@ -61,35 +70,36 @@ export function APIContextProvider({ children }: { children: ReactNode }) {
         }
         setVetKDDerivedKey(validVetKD.length > 0 ? validVetKD : undefined);
         return validVetKD;
-    }
+    }, [currentProfile]);
 
     // Context Methods
     const getFactoryCanisterAPI = useCallback(async (): Promise<FactoryCanisterAPI> => {
         const factoryCanisterId = process.env.CANISTER_ID_FACTORY_CANISTER_BACKEND ?? 'not-found';
+        const factoryHTTPAgent = await getFactoryAgent()
         const factoryActorAPI = await getOrCreateFactoryCanisterActor(factoryCanisterId, factoryHTTPAgent);
         return factoryActorAPI;
-    }, [factoryHTTPAgent, currentProfile])
+    }, [currentProfile, getFactoryAgent])
 
     const getSharedVaultCanisterAPI = useCallback(async (): Promise<SharedCanisterAPI> => {
         const sharedCanisterId = sharedVaultCanisterId ?? await interrogateFactoryForSharedCanister();
+        const sharedHTTPAgent = await getSharedAgent();
         const sharedActorAPI = await getOrCreateSharedCanisterActor(sharedCanisterId, sharedHTTPAgent);
         return sharedActorAPI;
-    }, [sharedHTTPAgent, currentProfile, sharedVaultCanisterId]);
+    }, [currentProfile, sharedVaultCanisterId, getSharedAgent, getFactoryAgent]);
 
-    const getVetKDDerivedKey = async (): Promise<Uint8Array> => {
-        console.log("key already exists", vetKDDerivedKey);
+    const getVetKDDerivedKey = useCallback(async (): Promise<Uint8Array> => {
         const vetKD = vetKDDerivedKey ?? await interrogateSharedForVetKey();
         return vetKD;
-    }
+    }, [sharedVaultCanisterId, currentProfile, vetKDDerivedKey]);
 
-    const userExistsWithVetKD = async (potentialUserId: string): Promise<boolean> => {
+    const userExistsWithVetKD = useCallback(async (potentialUserId: string): Promise<boolean> => {
         const apiToCall = await getSharedVaultCanisterAPI();
         const vetKD = (await apiToCall.get_vetkey_for_user(potentialUserId))[0];
         if (vetKD) {
             setVetKDDerivedKey(new Uint8Array(vetKD));
             return true;
         } else return false;
-    }
+    }, [sharedVaultCanisterId, currentProfile]);
 
     const contextValue: APIContextType = {
         getFactoryCanisterAPI,
