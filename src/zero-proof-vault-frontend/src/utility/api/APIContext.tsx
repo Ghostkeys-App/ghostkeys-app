@@ -10,6 +10,7 @@ export type APIContextType = {
     getFactoryCanisterAPI: () => Promise<FactoryCanisterAPI>;
     getSharedVaultCanisterAPI: () => Promise<SharedCanisterAPI>;
     getVetKDDerivedKey: () => Promise<Uint8Array>;
+    userExistsWithVetKD: (potentialUserId: string) => Promise<boolean>;
 };
 
 /**
@@ -26,13 +27,13 @@ export function APIContextProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         const init = async () => {
-            const fAgent = await HttpAgent.create({identity: currentProfile.identity});
+            const fAgent = await HttpAgent.create({ identity: currentProfile.identity });
             setFactoryHTTPAgent(fAgent);
-            const sAgent = await HttpAgent.create({identity: currentProfile.identity});
+            const sAgent = await HttpAgent.create({ identity: currentProfile.identity });
             setSharedHTTPAgent(sAgent);
         }
         init();
-    }, []);
+    }, [currentProfile]);
 
     // Helpers
     const interrogateFactoryForSharedCanister = async (): Promise<Principal> => {
@@ -46,14 +47,11 @@ export function APIContextProvider({ children }: { children: ReactNode }) {
         let validVetKD: Uint8Array;
         const apiToCall = await getSharedVaultCanisterAPI();
         const vetKD = (await apiToCall.get_vetkey_for_user(currentProfile.principal.toString()))[0];
-        console.log("key exists on canister", vetKD);
         if (vetKD)
             validVetKD = new Uint8Array(vetKD);
         else {
             const vetKDArgs: GhostkeysVetKdArgs = await generateGhostKeysArgs(currentProfile.principal);
-            console.log("GhostkeysVetKdArgs", vetKDArgs);
             const derivedVetKD = await apiToCall.derive_vetkd_encrypted_key(vetKDArgs);
-            console.log("Get new key", derivedVetKD);
             if ('Ok' in derivedVetKD)
                 validVetKD = new Uint8Array(derivedVetKD.Ok);
             else {
@@ -84,10 +82,20 @@ export function APIContextProvider({ children }: { children: ReactNode }) {
         return vetKD;
     }
 
+    const userExistsWithVetKD = async (potentialUserId: string): Promise<boolean> => {
+        const apiToCall = await getSharedVaultCanisterAPI();
+        const vetKD = (await apiToCall.get_vetkey_for_user(potentialUserId))[0];
+        if (vetKD) {
+            setVetKDDerivedKey(new Uint8Array(vetKD));
+            return true;
+        } else return false;
+    }
+
     const contextValue: APIContextType = {
         getFactoryCanisterAPI,
         getSharedVaultCanisterAPI,
-        getVetKDDerivedKey
+        getVetKDDerivedKey,
+        userExistsWithVetKD
     }
     return <APIContext.Provider value={contextValue}>{children}</APIContext.Provider>;
 }

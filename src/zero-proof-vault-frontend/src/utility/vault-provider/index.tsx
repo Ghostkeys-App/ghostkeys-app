@@ -1,14 +1,15 @@
-import {createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
-import {useIdentitySystem} from "../identity";
+import { useIdentitySystem } from "../identity";
 import {
     aesDecrypt,
     aesEncrypt,
     deriveFinalKey,
+    derivePrincipalAndIdentityFromSeed,
     deriveSignatureFromPublicKey,
     generateSeedAndIdentityPrincipal
 } from "../crypto/encdcrpt.ts";
-import {useAPIContext} from "../api/APIContext.tsx";
+import { useAPIContext } from "../api/APIContext.tsx";
 import {
     VaultData as ICVaultData
 } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
@@ -59,7 +60,7 @@ export type Actions = {
 
     saveLoginsToIDB(website_logins: WebsiteLogin[]): Promise<Vault>;
     syncCurrentVaultWithBackend(): Promise<void>;
-    getICVault(vaultID: string): Promise<{data: VaultData, vaultName: string} | null>;
+    getICVault(vaultID: string): Promise<{ data: VaultData, vaultName: string } | null>;
 }
 
 const VaultStateContext = createContext<State | null>(null);
@@ -67,8 +68,8 @@ const VaultActionsContext = createContext<Actions | null>(null);
 
 export function VaultContextProvider({ children }: { children: ReactNode }) {
     const db = useRef<IDBDatabase | null>(null);
-    const { currentProfile } = useIdentitySystem();
-    const { getSharedVaultCanisterAPI, getVetKDDerivedKey } = useAPIContext();
+    const { currentProfile, switchProfile, createProfileFromSeed } = useIdentitySystem();
+    const { getSharedVaultCanisterAPI, getVetKDDerivedKey, userExistsWithVetKD } = useAPIContext();
 
     const [isReady, setIsReady] = useState(false);
     const [syncedWithStable, setSyncedWithStable] = useState(false);
@@ -108,6 +109,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     const bootstrap = async () => {
         if (!db.current) throw new Error("DB not initialized");
 
+        // Try getting from IndexDB
         const tx = db.current.transaction(VAULTS_STORE_VAULTS, "readonly");
         const store = tx.objectStore(VAULTS_STORE_VAULTS);
         const req = store.getAll();
@@ -115,20 +117,43 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
             req.onsuccess = () => res(req.result as Vault[]);
             req.onerror = () => rej("Failed to list vaults");
         });
-
+        // Try getting from IC
+        if (allVaults.length === 0) {
+            const userExists = await userExistsWithVetKD(currentProfile.principal.toString());
+            const icUserVaults = userExists ? await getAllICVaults() : null;
+            if (icUserVaults === null) {
+                // No vaults returned per existing user --> create new one and store in index DB
+                if (!currentProfile) throw new Error("No profile set");
+                await createVault('Personal Vault');
+            } else {
+                await saveAllUserVault(icUserVaults);
+            }
+        }
         if (allVaults.length > 0) {
             setVaults(allVaults);
             setCurrentVaultId(allVaults[0].vaultID);
-        } else {
-            if (!currentProfile) throw new Error("No profile set");
-            await createVault('Personal Vault');
         }
     };
 
     // Actions callbacks
+    const saveAllUserVault = useCallback(async (userVaults: Array<{
+        data: VaultData;
+        vaultName: string;
+    }>) => {
+        // const newVault: Vault = {
+        //     vaultID,
+        //     vaultName,
+        //     icpPublicAddress: principal.toString(),
+        //     synced: false,
+        //     data: {
+        //         flexible_grid_columns: [],
+        //         secure_notes: [],
+        //         flexible_grid: [],
+        //         website_logins: [],
+        //     }
+        // };
+    }, []);
     const createVault = useCallback(async (vaultName: string): Promise<Vault> => {
-        if (!currentProfile) throw new Error("No profile set");
-
         const { principal } = await generateSeedAndIdentityPrincipal();
         const vaultID = `Vault_${principal.toString()}`;
         const newVault: Vault = {
@@ -147,6 +172,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         await new Promise<void>((res, rej) => {
             const tx = db.current!.transaction(VAULTS_STORE_VAULTS, "readwrite");
             const store = tx.objectStore(VAULTS_STORE_VAULTS);
+            store.
             const req = store.put(newVault);
 
             req.onerror = () => rej(req.error);
@@ -158,7 +184,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         setVaults((vaults) => [...vaults, newVault]);
         setCurrentVaultId(newVault.vaultID);
         return newVault;
-    }, [currentProfile]);
+    }, []);
 
     const deleteVault = useCallback(async (vaultID: string): Promise<void> => {
         if (!currentProfile) throw new Error("No profile set");
@@ -349,7 +375,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         };
     }, [currentProfile, currentVault]);
 
-    const getICVault = useCallback(async (vaultIcpPublicAddress: string): Promise<{data: VaultData, vaultName: string} | null> => {
+    const getICVault = useCallback(async (vaultIcpPublicAddress: string): Promise<{ data: VaultData, vaultName: string } | null> => {
         if (!currentProfile) throw new Error("No profile set");
 
         const api = await getSharedVaultCanisterAPI();
@@ -361,6 +387,52 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         return null;
 
     }, [currentProfile]);
+
+
+    const getAllICVaults = useCallback(async (): Promise<Array<{
+        data: VaultData;
+        vaultName: string;
+    }> | null> => {
+        if (!currentProfile) throw new Error("No profile set");
+        const api = await getSharedVaultCanisterAPI();
+        const allVaults = await api.get_all_vaults_for_user(currentProfile.principal.toString());
+        if (allVaults.length > 0) {
+            const allDecryptedVaultsData = [];
+            for (let [principalVaultId, vaultData] of allVaults) {
+                const decryptedVaultData = await decryptAndAdaptVaultData(principalVaultId, vaultData);
+                allDecryptedVaultsData.push(decryptedVaultData);
+            }
+            return allDecryptedVaultsData;
+        }
+        return null;
+    }, [currentProfile])
+
+    const dropPersistanceStorageForAllVaults = useCallback(async () => {
+        if (!currentProfile) throw new Error("No profile set");
+        if (!db.current) throw new Error("DB not initialized");
+
+        await new Promise<void>((res, rej) => {
+            const tx = db.current!.transaction(VAULTS_STORE_VAULTS, "readwrite");
+            const store = tx.objectStore(VAULTS_STORE_VAULTS);
+            const req = store.clear();
+
+            req.onerror = () => rej(req.error);
+            tx.onabort = () => rej(tx.error ?? new Error("IDB tx aborted"));
+            tx.onerror = () => rej(tx.error ?? new Error("IDB tx error"));
+            tx.oncomplete = () => res();
+        });
+    }, [])
+
+    const validateAndImportIdentityWithVaultFromSeed = useCallback(async (potentialUserSeed: string): Promise<boolean> => {
+        const existingProfile = await createProfileFromSeed(potentialUserSeed);
+        const userExists = await userExistsWithVetKD(existingProfile.principal.toString());
+        if (userExists) {
+            await dropPersistanceStorageForAllVaults();
+            await switchProfile(existingProfile);
+            // await getAndSaveAllUserVault();
+            return true;
+        } else return false;
+    }, []);
 
     const syncCurrentVaultWithBackend = useCallback(async (): Promise<void> => {
         if (!currentProfile) throw new Error("No profile set");

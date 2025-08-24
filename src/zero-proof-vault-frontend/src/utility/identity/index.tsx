@@ -122,9 +122,23 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     tx.objectStore(PROFILES_STORE).put(iProfile);
   };
 
+  const eraceCurrentProfile = async () => {
+    if (!db.current) throw new Error("DB not initialized");
+    await new Promise<void>((res, rej) => {
+      const tx = db.current!.transaction(PROFILES_STORE, "readwrite");
+      const store = tx.objectStore(PROFILES_STORE);
+      const req = store.clear();
+      req.onerror = () => rej(req.error);
+      tx.onabort = () => rej(tx.error ?? new Error("IDB identity tx aborted"));
+      tx.onerror = () => rej(tx.error ?? new Error("IDB identity tx error"));
+      tx.oncomplete = () => res();
+    });
+  }
+
   // User Profile UI on Import SEED Phrase
   const switchProfile = async (profile: UserProfile) => {
-    // TODO: Logic to derive profile from seed call existing method
+    await eraceCurrentProfile();
+    await saveProfile(profile);
     setCurrentProfile(profile);
   };
 

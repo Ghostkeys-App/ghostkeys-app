@@ -34,7 +34,7 @@ export default function WebsiteLogins(): JSX.Element {
   const apiContext = useAPIContext();
 
   const { vaults, currentVault, currentVaultId } = useVaultProviderState();
-  const { createVault, deleteVault, switchVault, saveLoginsToIDB, syncVaultWithBackend } = useVaultProviderActions();
+  const { createVault, deleteVault, switchVault, saveLoginsToIDB, syncCurrentVaultWithBackend } = useVaultProviderActions();
   const { getSharedVaultCanisterAPI, getVetKDDerivedKey } = useAPIContext();
 
   const websiteLogins: WebsiteLogin[] = currentVault?.data.website_logins || [];
@@ -142,7 +142,7 @@ export default function WebsiteLogins(): JSX.Element {
   }
 
   async function sync () {
-    await syncVaultWithBackend();
+    await syncCurrentVaultWithBackend();
   }
 
   function exportJson() {
@@ -184,7 +184,7 @@ export default function WebsiteLogins(): JSX.Element {
     const websiteUser = await aesEncrypt('test', fnKD);
     const websitePass = await aesEncrypt('pass', fnKD);
 
-    const data: VaultData = {
+    const data: BEVaultData = {
       'vault_name': vaultName,
       'flexible_grid_columns': [[colName, [1, true]]],
       'secure_notes': [[noteName, noteSecret]],
