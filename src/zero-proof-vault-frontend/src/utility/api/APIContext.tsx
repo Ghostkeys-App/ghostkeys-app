@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import {createContext, ReactNode, useCallback, useContext, useEffect, useState} from "react";
 import { FactoryCanisterAPI, getOrCreateFactoryCanisterActor, getOrCreateSharedCanisterActor, SharedCanisterAPI } from ".";
 import { Principal } from "@dfinity/principal";
 import { useIdentitySystem } from "../identity";
@@ -66,17 +66,17 @@ export function APIContextProvider({ children }: { children: ReactNode }) {
     }
 
     // Context Methods
-    const getFactoryCanisterAPI = async (): Promise<FactoryCanisterAPI> => {
+    const getFactoryCanisterAPI = useCallback(async (): Promise<FactoryCanisterAPI> => {
         const factoryCanisterId = process.env.CANISTER_ID_FACTORY_CANISTER_BACKEND ?? 'not-found';
         const factoryActorAPI = await getOrCreateFactoryCanisterActor(factoryCanisterId, factoryHTTPAgent);
         return factoryActorAPI;
-    }
+    }, [factoryHTTPAgent, currentProfile])
 
-    const getSharedVaultCanisterAPI = async (): Promise<SharedCanisterAPI> => {
+    const getSharedVaultCanisterAPI = useCallback(async (): Promise<SharedCanisterAPI> => {
         const sharedCanisterId = sharedVaultCanisterId ?? await interrogateFactoryForSharedCanister();
         const sharedActorAPI = await getOrCreateSharedCanisterActor(sharedCanisterId, sharedHTTPAgent);
         return sharedActorAPI;
-    }
+    }, [sharedHTTPAgent, currentProfile, sharedVaultCanisterId]);
 
     const getVetKDDerivedKey = async (): Promise<Uint8Array> => {
         console.log("key already exists", vetKDDerivedKey);
