@@ -1,7 +1,7 @@
 import React from "react";
 import {BrowserRouter as Router, Routes, Route, Navigate} from "react-router-dom";
 import NewDesign from "./pages/NewDesign.tsx";
-import WebsiteLogins from "./components/new-design/WebsiteLogins.tsx";
+import WebsiteLogins from "./components/website-logins/WebsiteLogins.tsx";
 // import SecureNotes from "./components/new-design/SecureNotes.tsx";
 // import Spreadsheet from "./components/new-design/Spreadsheet.tsx";
 

@@ -5,13 +5,16 @@ import { IdentitySystemProvider } from './utility/identity';
 import './index.scss';
 import { APIContextProvider } from './utility/api/APIContext';
 import {VaultContextProvider} from "./utility/vault-provider";
+import {ToastProvider} from "./utility/toast";
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <>
     <IdentitySystemProvider>
       <APIContextProvider>
          <VaultContextProvider>
-        <App />
+           <ToastProvider>
+             <App />
+           </ToastProvider>
          </VaultContextProvider>
       </APIContextProvider>
     </IdentitySystemProvider>
