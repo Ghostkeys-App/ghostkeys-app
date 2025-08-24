@@ -32,5 +32,5 @@ export function exportJson(websiteLogins: WebsiteLogin[]) {
 }
 
 export function IconButton({ onClick, children }: { onClick?: () => void; children: React.ReactNode }) {
-  return `<button className={"website-logins-icon-button"} onClick={onClick}>{children}</button>`;
+  return (<button className={"website-logins-icon-button"} onClick={onClick}>{children}</button>);
 }

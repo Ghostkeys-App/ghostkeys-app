@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { _bindAddToast, ToastOptions, ToastType } from './toast';
+import funnyGhostIcon from "../../../public/funny-ghost.svg";
 
 type ToastInternal = Required<ToastOptions>;
 
@@ -30,7 +31,7 @@ export const ToastProvider: React.FC<React.PropsWithChildren> = ({ children }) =
   const portalRoot = useMemo(() => {
     const el = document.createElement('div');
     el.setAttribute('data-toast-root', '');
-    Object.assign(el.className, 'toast-root');
+    el.className = 'toast-root';
     document.body.appendChild(el);
     return el;
   }, []);
@@ -47,7 +48,7 @@ export const ToastProvider: React.FC<React.PropsWithChildren> = ({ children }) =
         {createPortal(
             <div>
               {toasts.map(t => (
-                  <Toast key={t.id} message={t.message} type={t.type} />
+                  <Toast key={t.id} message={t.message} type={t.type} style={{ ['--dur' as any]: `${t.durationMs}ms` }} />
               ))}
             </div>,
             portalRoot
@@ -56,18 +57,9 @@ export const ToastProvider: React.FC<React.PropsWithChildren> = ({ children }) =
   );
 };
 
-const typeStyles: Record<ToastType, React.CSSProperties> = {
-  success: { borderLeft: '4px solid #16a34a' },
-  error: { borderLeft: '4px solid #dc2626' },
-  info: { borderLeft: '4px solid #2563eb' },
-  warning: { borderLeft: '4px solid #d97706' },
-};
-
-const Toast: React.FC<{ message: string; type: ToastType }> = ({ message, type }) => {
-  return (
-      <div className={`toast ${type}`}>
-        <div className={'toast-icon'}>🔔</div>
-        <div className={'toast-message'}>{message}</div>
-      </div>
-  );
-};
+const Toast: React.FC<{ message: string; type: ToastType; style?: React.CSSProperties }> = ({ message, type, style }) => (
+    <div className={`toast ${type}`} style={style}>
+      <img className="toast-icon" src={funnyGhostIcon} alt={'funny-ghost'}/>
+      <div className="toast-message">{message}</div>
+    </div>
+);

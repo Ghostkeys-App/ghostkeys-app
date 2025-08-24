@@ -9,7 +9,7 @@ import {
   WebsiteLogin,
   WebsiteLoginEntry
 } from "../../utility/vault-provider";
-import {copyPassword, exportJson, IconButton, siteIconFor} from "./helpers.ts";
+import {copyPassword, exportJson, IconButton, siteIconFor} from "./helpers.tsx";
 import {toast} from "../../utility/toast";
 
 
@@ -24,9 +24,12 @@ export default function WebsiteLogins(): JSX.Element {
   const [openAddEntryForIdx, setOpenAddEntryForIdx] = React.useState<number | null>(null);
 
   // Derived values
-  const websiteLogins: WebsiteLogin[] = currentVault?.data.website_logins || [];
+  const websiteLogins: WebsiteLogin[] = useMemo(
+      () => currentVault?.data.website_logins || [],
+      [currentVault]
+  );
 
-  const filtered: WebsiteLogin[] = React.useMemo(() => {
+  const filteredWebsiteLogins: WebsiteLogin[] = React.useMemo(() => {
     const all = currentVault?.data.website_logins || [];
     const needle = q.trim().toLowerCase();
     if (!needle) return all;
@@ -34,18 +37,19 @@ export default function WebsiteLogins(): JSX.Element {
         s.name.toLowerCase().includes(needle) ||
         s.entries.some((e) => e.login.toLowerCase().includes(needle))
     );
-  }, [q]);
+  }, [q, currentVault]);
 
   const synced = useMemo(
       () => currentVault?.synced,
       [currentVault]
   );
 
+
   // TEMP FOR TEST
-  async function zxc() {
-    const a = await getICVault(currentVault!.icpPublicAddress!);
-    console.log('GET: ', currentVault!.icpPublicAddress!, a)
-  }
+  // async function zxc() {
+  //   const a = await getICVault(currentVault!.icpPublicAddress!);
+  //   console.log('GET: ', currentVault!.icpPublicAddress!, a)
+  // }
 
 
   async function onAddEntry(login: string, password: string) {
@@ -171,7 +175,7 @@ export default function WebsiteLogins(): JSX.Element {
               <button className="gk-btn gk-btn-add" onClick={() => setOpenAddSite(true)}>
                 <Plus size={16} /> Add site
               </button>
-              <button className="gk-btn gk-btn-export" onClick={() => zxc()}>Export</button>
+              <button className="gk-btn gk-btn-export" onClick={() => exportJson(filteredWebsiteLogins)}>Export</button>
               <button className={`gk-btn gk-btn-save ${synced ? 'synced' : 'not-synced'}`} onClick={sync}>
                 {(synced ? 'Synced' : 'Sync changes')}
               </button>
@@ -189,7 +193,7 @@ export default function WebsiteLogins(): JSX.Element {
         </div>
 
         <div className="website-logins-grid">
-          {filtered.length === 0 ? (
+          {filteredWebsiteLogins.length === 0 ? (
               <div className="empty-state">
                 <div className="ghost-float">
                   <img src={funnyGhostIcon} alt={'funny-ghost'} />
@@ -200,7 +204,7 @@ export default function WebsiteLogins(): JSX.Element {
                 </button>
               </div>
           ) : (
-              filtered.map((site, i) => (
+              filteredWebsiteLogins.map((site, i) => (
                   <article key={`${site.name}-${i}`} className="login-card">
                     <div className={"login-card-content"}>
                       {siteIconFor(site.name) ? (

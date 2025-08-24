@@ -1765,36 +1765,143 @@ input, button {
   position: fixed;
   right: 16px;
   bottom: 16px;
+  z-index: 9999;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  z-index: 9999;
   pointer-events: none;
+  perspective: 1000px;
+  isolation: isolate;
 
-  .toast{
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    filter: blur(40px);
+    opacity: .12;
+    background:
+            radial-gradient(120px 60px at 100% 100%, #4f46e5 10%, transparent 60%),
+            radial-gradient(100px 40px at 0% 100%, #22d3ee 10%, transparent 60%);
+    z-index: -1;
+  }
+
+  .toast {
     pointer-events: auto;
-    min-width: 260px;
-    max-width: 420px;
-    background: rgba(24,24,27,0.95);
-    color: white;
+    position: relative;
+    min-width: 280px;
+    max-width: min(440px, 90vw);
+    color: #fff;
     padding: 12px 14px;
-    border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-    backdrop-filter: blur(6px);
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    border-radius: 14px;
+    box-shadow: 0 18px 55px rgba(0,0,0,.45);
+    backdrop-filter: blur(10px) saturate(135%);
+    -webkit-backdrop-filter: blur(10px) saturate(135%);
+    overflow: hidden;
+    background:
+            linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03)) border-box,
+            rgba(16,16,20,.7);
+    outline: 1px solid rgba(255,255,255,.12);
+    outline-offset: -1px;
+
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 12px;
+
+    transform: translate3d(0, 16px, 0) scale(.98) rotateX(2deg);
+    opacity: 0;
+    animation: toast-in .55s cubic-bezier(.21,1,.21,1) forwards;
+
+    &:nth-child(2) { animation-delay: 60ms; }
+    &:nth-child(3) { animation-delay: 120ms; }
+    &:nth-child(4) { animation-delay: 180ms; }
+
+    &::before,
+    &::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0;
+      pointer-events: none;
+    }
+
+    &::before {
+      top: 0; bottom: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background:
+              linear-gradient(90deg,
+                      transparent 0%,
+                      currentColor 20%,
+                      currentColor 50%,
+                      currentColor 80%,
+                      transparent 100%);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      opacity: .9;
+      filter: drop-shadow(0 0 12px currentColor);
+    }
+
+    &::after {
+      bottom: 0; height: 3px;
+      background: linear-gradient(90deg, currentColor 0%, currentColor 50%, currentColor 100%);
+      transform-origin: left;
+      animation: toast-progress 3000ms linear forwards;
+    }
+
+    &:hover {
+      transform: translate3d(0, 6px, 0) scale(1) rotateX(0deg);
+      transition: transform .25s ease, box-shadow .25s ease, opacity .25s ease;
+      box-shadow: 0 22px 65px rgba(0,0,0,.5);
+    }
+    &:hover::after { animation-play-state: paused; }
+
+    &.success { color: hsl(160,72%,42%); }
+    &.error   { color: hsl(0,72%,52%); }
+    &.info    { color: hsl(221,83%,54%); }
+    &.warning { color: hsl(33,74%,52%); }
 
     .toast-icon{
+      width: 30px;
       font-size: 18px;
-      line-height: 1px;
+      line-height: 1;
+      translate: 0 2px;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.25));
+      animation: icon-pop .6s cubic-bezier(.2, .9, .2, 1) .1s both;
     }
 
     .toast-message{
-      font-size: 14px;
-      line-height: 1.35px;
+      font-size: 14.5px;
+      line-height: 2;
+      letter-spacing: .2px;
       white-space: pre-wrap;
+      text-shadow: 0 1px 0 rgba(0,0,0,.15);
     }
+
+    &:active { transform: translate3d(0, 8px, 0) scale(.995); }
   }
+}
+@keyframes toast-in {
+  0%   { opacity: 0; transform: translate3d(0, 16px, 0) scale(.98) rotateX(2deg); }
+  60%  { opacity: 1; transform: translate3d(0, 0, 0) scale(1.005) rotateX(0deg); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1) rotateX(0deg); }
+}
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+@keyframes icon-pop {
+  0%   { transform: scale(.6) rotate(-8deg); opacity: 0; }
+  60%  { transform: scale(1.08) rotate(0deg); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-root .toast {
+    animation: none;
+    transform: none;
+  }
+  .toast-root .toast::after { animation: none; }
+  .toast-root .toast:hover { transform: none; }
 }
 
