@@ -14,6 +14,7 @@ export default function VaultSelector() {
   const [actionsOpen, setActionsOpen] = React.useState(false);
   const [renameOpen, setRenameOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [createOpen, setCreateOpen] = React.useState(false);
 
   const rootRef = React.useRef<HTMLDivElement>(null);
 
@@ -42,6 +43,19 @@ export default function VaultSelector() {
     setOpen(false);
     setActionsOpen(false);
   }
+
+    const submitCreate = useCallback(async (values: Record<string, string>) => {
+    const next = values.name?.trim();
+    if (!next || !currentVault) return;
+    if (await createVault(next)) {
+      toast.success("Successfuly created new vault.")
+    } else {
+      toast.warning("Couldn't create vault.")
+    }
+    setCreateOpen(false);
+    setActionsOpen(false);
+    setOpen(false);
+  }, [currentVault]);
 
   React.useEffect(() => {
     function onEsc(e: KeyboardEvent) {
@@ -196,7 +210,7 @@ export default function VaultSelector() {
               ))}
 
               {/* New vault CTA */}
-              <button className="gk-vault-new" onClick={onCreateVaultClick}>
+              <button className="gk-vault-new" onClick={() => setCreateOpen(true)}>
                 <svg viewBox="0 0 24 24" aria-hidden style={{ width: 24 }}>
                   <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
@@ -222,6 +236,23 @@ export default function VaultSelector() {
           },
         ]}
         onSubmit={submitRename}
+      />
+
+      <GKFormModal
+        open={createOpen}
+        onClose={() => {setCreateOpen(false); setOpen(false);}}
+        title="Create new vault"
+        description="Set name for your new vault"
+        okLabel="Save"
+        fields={[
+          {
+            name: "name",
+            label: "Vault name",
+            placeholder: "e.g. Personal Vault",
+            required: true,
+          },
+        ]}
+        onSubmit={submitCreate}
       />
 
       <GKModal
