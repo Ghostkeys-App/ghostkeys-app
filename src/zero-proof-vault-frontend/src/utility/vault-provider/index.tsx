@@ -28,12 +28,25 @@ export type SecurityNote = {
     content: string;
 }
 
+export type FlexibleGridCell = {
+    key: FlexGridDataKey;
+    value: string
+}
+
+export type FlexibleGridColumn = {
+    name: string;
+    meta: {
+        index: number;
+        hidden: boolean
+    };
+}
+
 export type FlexGridDataKey = { col: number; row: number };
 
 export type VaultData = {
-    flexible_grid_columns: Array<{ name: string; meta: { index: number; hidden: boolean } }>;
+    flexible_grid_columns: FlexibleGridColumn[];
     secure_notes: SecurityNote[];
-    flexible_grid: Array<{ key: FlexGridDataKey; value: string }>;
+    flexible_grid: FlexibleGridCell[];
     website_logins: WebsiteLogin[];
 };
 

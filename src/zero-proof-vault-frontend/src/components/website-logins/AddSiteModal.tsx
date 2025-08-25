@@ -1,5 +1,5 @@
 import React from "react";
-import GKModal from "./GKModal";
+import GKModal from "../new-design/GKModal.tsx";
 
 type Props = {
   open: boolean;

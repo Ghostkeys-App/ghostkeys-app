@@ -1411,6 +1411,13 @@ input, button {
   padding-top: 22px;
   overflow: hidden;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  &.saving {
+    button {
+      pointer-events: none!important;
+      opacity: .3!important;
+    }
+  }
 }
 
 /* Header / toolbar */

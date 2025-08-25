@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { Copy, Edit2, Trash2, Plus } from "lucide-react";
 import funnyGhostIcon from "../../../public/funny-ghost.svg";
 import GKFormModal from "../new-design/GKFormModal.tsx";
-import AddSiteModal from "../new-design/AddSiteModal.tsx";
+import AddSiteModal from "./AddSiteModal.tsx";
 import {
   useVaultProviderActions,
   useVaultProviderState,
