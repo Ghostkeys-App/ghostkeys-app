@@ -1228,6 +1228,13 @@ input, button {
   padding-top: 22px;
   overflow: auto;
   color: #fff;
+
+  &.saving {
+    button {
+      pointer-events: none!important;
+      opacity: .3!important;
+    }
+  }
 }
 
 .security-notes-header {

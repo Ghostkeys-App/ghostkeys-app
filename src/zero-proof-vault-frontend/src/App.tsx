@@ -2,8 +2,7 @@ import React from "react";
 import {BrowserRouter as Router, Routes, Route, Navigate} from "react-router-dom";
 import NewDesign from "./pages/NewDesign.tsx";
 import WebsiteLogins from "./components/website-logins/WebsiteLogins.tsx";
-// import SecureNotes from "./components/new-design/SecureNotes.tsx";
-// import Spreadsheet from "./components/new-design/Spreadsheet.tsx";
+import SecurityNotes from "./components/security-notes/SecurityNotes.tsx";
 
 export default function App() {
   return (
@@ -13,7 +12,7 @@ export default function App() {
           <Route index element={<Navigate to="/website-logins" replace />} />
           {/*<Route path="/spreadsheet" element={<Spreadsheet />} />*/}
           <Route path="/website-logins" element={<WebsiteLogins />} />
-          {/*<Route path="/security-notes" element={<SecureNotes />} />*/}
+          <Route path="/security-notes" element={<SecurityNotes />} />
 
           {/* 404 */}
           <Route path="*" element={<Navigate to="/website-logins" replace />} />

@@ -9,13 +9,14 @@ import {
   WebsiteLogin,
   WebsiteLoginEntry
 } from "../../utility/vault-provider";
-import {copyPassword, exportJson, IconButton, siteIconFor} from "./helpers.tsx";
+import {exportJson, IconButton, siteIconFor} from "./helpers.tsx";
 import {toast} from "../../utility/toast";
+import {copyToClipboard} from "../../utility/clipboard";
 
 
 export default function WebsiteLogins(): JSX.Element {
   const { currentVault } = useVaultProviderState();
-  const { saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault } = useVaultProviderActions();
+  const { saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend } = useVaultProviderActions();
 
   // UI-only states
   const [q, setQ] = React.useState("");
@@ -195,9 +196,7 @@ export default function WebsiteLogins(): JSX.Element {
         <div className="website-logins-grid">
           {filteredWebsiteLogins.length === 0 ? (
               <div className="empty-state">
-                <div className="ghost-float">
-                  <img src={funnyGhostIcon} alt={'funny-ghost'} />
-                </div>
+                <div className="ghost-float"><img src={funnyGhostIcon} alt={'funny-ghost'} /></div>
                 <div className={"empty-state-title"}>No logins yet</div>
                 <button className="gk-btn gk-btn-add" onClick={() => setOpenAddSite(true)}>
                   <Plus size={16} /> Add site
@@ -238,7 +237,7 @@ export default function WebsiteLogins(): JSX.Element {
                                     {"•".repeat(Math.max(8, Math.min(e.password.length, 14)))}
                                   </div>
                                 </div>
-                                <IconButton onClick={() => copyPassword(e.password)}><Copy size={14} /></IconButton>
+                                <IconButton onClick={() => copyToClipboard(e.password)}><Copy size={14} /></IconButton>
                                 <IconButton onClick={() => editEntry(i, j)}><Edit2 size={14} /></IconButton>
                                 <IconButton onClick={() => deleteEntry(i, j)}><Trash2 size={14} /></IconButton>
                               </div>

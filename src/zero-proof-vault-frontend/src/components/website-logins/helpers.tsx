@@ -1,4 +1,3 @@
-import {toast} from "../../utility/toast";
 import {WebsiteLogin} from "../../utility/vault-provider";
 import React from "react";
 
@@ -11,15 +10,6 @@ export function siteIconFor(name: string): string | undefined {
   if (n.includes("facebook")) return "/facebook.png";
   if (n.includes("dropbox")) return "/dropbox.png";
   return undefined;
-}
-
-export async function copyPassword(password: string) {
-  try {
-    await navigator.clipboard.writeText(password);
-    toast.success("Password copied");
-  } catch {
-    toast.error("Could not copy");
-  }
 }
 
 export function exportJson(websiteLogins: WebsiteLogin[]) {

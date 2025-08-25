@@ -24,11 +24,16 @@ export type WebsiteLoginEntry = {
     password: string;
 }
 
+export type SecurityNote = {
+    name: string;
+    content: string;
+}
+
 export type FlexGridDataKey = { col: number; row: number };
 
 export type VaultData = {
     flexible_grid_columns: Array<{ name: string; meta: { index: number; hidden: boolean } }>;
-    secure_notes: Array<{ name: string; content: string }>;
+    secure_notes: SecurityNote[];
     flexible_grid: Array<{ key: FlexGridDataKey; value: string }>;
     website_logins: WebsiteLogin[];
 };
