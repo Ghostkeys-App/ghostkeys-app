@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Globe, Lock, CreditCard, IdCard, Grid3X3 } from "lucide-react";
+import React, { useCallback, useState } from "react";
+import { Globe, Lock, Grid3X3 } from "lucide-react";
 import { useIdentitySystem } from "../../utility/identity";
 import VaultSelector from "./VaultSelector.tsx";
 import { useVaultProviderActions } from "../../utility/vault-provider/index.tsx";
@@ -59,22 +59,22 @@ export default function TemplateSidebar({
     setShowProfileModal(true);
   };
 
-  const validateSeedPhraseText = useCallback((seedToValidate: string): {valid: boolean, error?: string} => {
+  const validateSeedPhraseText = useCallback((seedToValidate: string): { valid: boolean, error?: string } => {
     const seedWords = seedToValidate.split(' ');
     const validLenght = seedWords.length === 12;
     if (!validLenght)
-      return {valid: false, error: "Seed lenght invalid!"}
+      return { valid: false, error: "Seed lenght invalid!" }
 
     const notKnownInSpecifiedSeed = seedWords.find((w => !english.includes(w)));
     if (notKnownInSpecifiedSeed)
-      return {valid: false, error: "Seed is not generated from specified pool of words!"}
-    return {valid: true}
-  } , [currentProfile]);
+      return { valid: false, error: "Seed is not generated from specified pool of words!" }
+    return { valid: true }
+  }, [currentProfile]);
 
   const handleImport = useCallback(async (seed: string) => {
     const textValid = validateSeedPhraseText(seed);
     if (!textValid.valid) {
-      toast.error(textValid.error!, {idiotProof: true});
+      toast.error(textValid.error!, { idiotProof: true });
       return;
     }
     const success = await validateAndImportIdentityWithVaultFromSeed(seed);

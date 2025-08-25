@@ -5,7 +5,6 @@ import {
     aesDecrypt,
     aesEncrypt,
     deriveFinalKey,
-    derivePrincipalAndIdentityFromSeed,
     deriveSignatureFromPublicKey,
     generateSeedAndIdentityPrincipal
 } from "../crypto/encdcrpt.ts";
@@ -44,6 +43,7 @@ export type Vault = {
     icpPublicAddress: string;
     synced: boolean;
     data: VaultData;
+    existsOnIc: boolean
 };
 
 export const DB_NAME_VAULTS = "Ghostkeys-persistent-vaults";
@@ -68,6 +68,7 @@ export type Actions = {
     getICVault(vaultIcpPublicAddress: string): Promise<{ data: VaultData, vaultName: string } | null>;
     getAllICVaults(userPrincipalId: string): Promise<Array<{ data: VaultData; vaultName: string; icpPublicAddress: string; }> | null>
     validateAndImportIdentityWithVaultFromSeed(potentialUserSeed: string): Promise<boolean>;
+    deleteVaultFromIC(vaultPublicAddress: string): Promise<boolean>;
 }
 
 const VaultStateContext = createContext<State | null>(null);
@@ -125,7 +126,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
             if (!currentProfile) throw new Error("No profile set");
             await createVault('Personal Vault');
         } else {
-            await saveAllUserVaults(icUserVaults);
+            await saveAllUserVaults(icUserVaults, true);
         }
         setIsSeedPhraseImport(false);
     }), [currentProfile]);
@@ -150,7 +151,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
                 if (!currentProfile) throw new Error("No profile set");
                 await createVault('Personal Vault');
             } else {
-                await saveAllUserVaults(icUserVaults);
+                await saveAllUserVaults(icUserVaults, true); // since we got them from query call
             }
         }
         if (allVaults.length > 0) {
@@ -164,7 +165,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         data: VaultData;
         vaultName: string;
         icpPublicAddress: string;
-    }>) => {
+    }>, fromIc: boolean) => {
         const newVaults: Vault[] = [];
         for (const { data, vaultName, icpPublicAddress } of userVaults) {
             const vaultID = `Vault_${icpPublicAddress}`;
@@ -173,7 +174,8 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
                 vaultName,
                 icpPublicAddress: icpPublicAddress,
                 synced: true,
-                data: data
+                data: data,
+                existsOnIc: fromIc
             };
             await saveVaultToIDB(newVault);
             newVaults.push(newVault);
@@ -207,7 +209,8 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
                 secure_notes: [],
                 flexible_grid: [],
                 website_logins: [],
-            }
+            },
+            existsOnIc: false
         };
         await saveVaultToIDB(newVault);
         setVaults((vaults) => [...vaults, newVault]);
@@ -231,9 +234,24 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         });
 
         // TODO: handle removing last vault
-        setVaults((vaults) => vaults.filter((v) => v.vaultID != vaultID));
-        setCurrentVaultId(vaults.filter((v) => v.vaultID != vaultID)[0].vaultID);
+        setVaults((prev) => {
+            const next = prev.filter((v) => v.vaultID !== vaultID);
+            setCurrentVaultId(next[0]?.vaultID ?? null);
+            return next;
+        });
     }, [currentProfile]);
+
+    const deleteVaultFromIC = useCallback(async (vaultPublicAddress: string): Promise<boolean> => {
+        const api = await getSharedVaultCanisterAPI();
+        try {
+            await api.delete_vault(currentProfile.principal.toString(), vaultPublicAddress);
+            return true;
+        } catch (e) {
+            console.warn("Error on delete vault: ", e);
+            return false
+        }
+
+    }, [currentProfile, getSharedVaultCanisterAPI]);
 
     const renameVault = useCallback(async (vaultID: string, newName: string): Promise<Vault | undefined> => {
         if (!currentProfile) throw new Error("No profile set");
@@ -264,7 +282,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         });
 
         if (updatedVault) {
-            setVaults((vaults) => [...vaults, updatedVault]);
+            setVaults((prev) => prev.map(v => v.vaultID === vaultID ? updatedVault : v));
         }
 
         return updatedVault;
@@ -283,7 +301,8 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
             vaultName: currentVault.vaultName!,
             icpPublicAddress: currentVault.icpPublicAddress,
             synced: false,
-            data
+            data,
+            existsOnIc: currentVault.existsOnIc
         };
 
         if (!db.current) throw new Error("DB not initialized");
@@ -302,7 +321,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         return updatedVault;
     }, [currentProfile, currentVault]);
 
-    const setCurrentVaultSyncStatusIdb = useCallback(async (synced: boolean): Promise<void> => {
+    const setCurrentVaultSyncStatusIdb = useCallback(async (synced: boolean, existsOnIc: boolean): Promise<void> => {
         if (!currentProfile) throw new Error("No profile set");
         if (!currentVault) throw new Error("No current vault set");
 
@@ -496,7 +515,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         console.log('start BE call', currentProfile.principal.toString(), currentVault.icpPublicAddress, payload);
         const a = await api.add_or_update_vault(currentProfile.principal.toString(), currentVault.icpPublicAddress, payload);
         console.log('set vaults called', a);
-        await setCurrentVaultSyncStatusIdb(true);
+        await setCurrentVaultSyncStatusIdb(true, true);
         setVaults((prevState) => prevState.map((v) => v.vaultID == currentVaultId ? { ...currentVault, synced: true } : v));
 
     }, [currentProfile, currentVault, getSharedVaultCanisterAPI]);
@@ -507,8 +526,8 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     );
 
     const actions = useMemo<Actions>(
-        () => ({ createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed }),
-        [createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed]
+        () => ({ createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC }),
+        [createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC]
     );
 
     if (!isReady) return <LoadingAnimation />;

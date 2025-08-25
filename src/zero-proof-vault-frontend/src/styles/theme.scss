@@ -1619,6 +1619,9 @@ input, button {
 .gk-btn.ghost {
   background: rgba(255,255,255,.10);
 }
+.gk-btn.danger {
+  background: rgba(220, 38, 38, 1);
+}
 
 /* Form */
 .gk-form { display: grid; gap: 12px; }
@@ -1991,3 +1994,65 @@ input, button {
   100% { box-shadow: 0 0 0 0 rgba(var(--gk-text), 0) }
 }
 .pulse-once { animation: gk-profile-pulse 2.2s ease-out 1; }
+
+
+/* Container needs to anchor absolutely-positioned controls */
+.gk-vault { position: relative; }
+
+.gk-vault-more {
+  padding: 0;
+  position: absolute;
+  top: 50%;
+  right: 10px; /* inside pill gutter */
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(var(--gk-text), .85);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, opacity .15s ease;
+  z-index: 2; /* above pill contents */
+}
+.gk-vault-more:hover { background: var(--gk-item-bg-hover); color: rgba(var(--gk-text), 1); }
+.gk-vault-more:disabled { opacity: .5; pointer-events: none; }
+
+/* Slide-out actions tray (pencil + trash) */
+.gk-vault-actions-tray {
+  position: absolute;
+  top: 50%;
+  right: 44px; 
+  transform: translateY(-50%) translateX(8px);
+  opacity: 0;
+  pointer-events: none;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+  transition: transform .18s ease, opacity .18s ease;
+}
+.gk-vault-actions-tray.is-open {
+  transform: translateY(-50%) translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Small icon buttons inside the tray */
+.icon-btn {
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--gk-item-bg);
+  color: rgba(var(--gk-text), .9);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, transform .05s ease;
+}
+.icon-btn:hover { background: var(--gk-item-bg-hover); }
+.icon-btn:active { transform: translateY(1px); }
+.icon-btn.danger { color: #ff6b6b; }

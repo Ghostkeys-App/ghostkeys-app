@@ -29,7 +29,10 @@ export function APIContextProvider({ children }: { children: ReactNode }) {
     const sharedAgentRef = useRef<HttpAgent | null>(null);
 
     const getFactoryAgent = useCallback(async (): Promise<HttpAgent> => {
-        if (factoryAgentRef.current) return factoryAgentRef.current;
+        if (factoryAgentRef.current) {
+            factoryAgentRef.current.replaceIdentity(currentProfile.identity)
+            return factoryAgentRef.current;
+        }
         if (!currentProfile.identity) throw new Error("Identity not ready yet");
         const agent = await HttpAgent.create({ identity: currentProfile.identity });
         factoryAgentRef.current = agent;
@@ -37,7 +40,10 @@ export function APIContextProvider({ children }: { children: ReactNode }) {
     }, [currentProfile]);
 
     const getSharedAgent = useCallback(async (): Promise<HttpAgent> => {
-        if (sharedAgentRef.current) return sharedAgentRef.current;
+        if (sharedAgentRef.current) {
+            sharedAgentRef.current.replaceIdentity(currentProfile.identity);
+            return sharedAgentRef.current;
+        }
         if (!currentProfile.identity) throw new Error("Identity not ready yet");
         const agent = await HttpAgent.create({ identity: currentProfile.identity });
         sharedAgentRef.current = agent;
