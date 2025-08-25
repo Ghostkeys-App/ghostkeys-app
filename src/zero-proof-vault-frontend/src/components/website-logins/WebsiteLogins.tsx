@@ -87,7 +87,6 @@ export default function WebsiteLogins(): JSX.Element {
 
     try {
       await syncCurrentVaultWithBackend();
-      console.log('Success!!!!!!!!!!!!')
       toast.success('Successfully synced!');
     } catch (err) {
       toast.error('Could not sync with the ICP');

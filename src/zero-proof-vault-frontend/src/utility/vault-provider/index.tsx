@@ -479,14 +479,11 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     }> | null> => {
         if (!currentProfile) throw new Error("No profile set");
         const api = await getSharedVaultCanisterAPI();
-        console.log("userPrincipalId", userPrincipalId);
         const allVaults = await api.get_all_vaults_for_user(userPrincipalId ?? currentProfile.principal.toString());
-        console.log("Inside getAllICVaults: ", allVaults);
         if (allVaults.length > 0) {
             const allDecryptedVaultsData = [];
             for (let [principalVaultId, vaultData] of allVaults) {
                 const decryptedVaultData = await decryptAndAdaptVaultData(principalVaultId, vaultData);
-                console.log("Inside decryptedVaultData: ", decryptedVaultData);
                 allDecryptedVaultsData.push({ icpPublicAddress: principalVaultId, ...decryptedVaultData });
             }
             return allDecryptedVaultsData;
@@ -513,10 +510,8 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     const validateAndImportIdentityWithVaultFromSeed = useCallback(async (potentialUserSeed: string): Promise<boolean> => {
         const existingProfile = await createProfileFromSeed(potentialUserSeed);
         const userExists = await userExistsWithVetKD(existingProfile.principal.toString());
-        console.log('userExists', userExists);
         if (userExists) {
             await dropPersistanceStorageForAllVaults();
-            console.log("before switchProfile in validateAndImportIdentityWithVaultFromSeed", currentProfile.principal.toString());
             await switchProfile(existingProfile);
             setIsSeedPhraseImport(true);
             return true;
@@ -529,9 +524,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
 
         const payload = await prepareEncryptedVaultPayload(currentVault);
         const api = await getSharedVaultCanisterAPI();
-        console.log('start BE call', currentProfile.principal.toString(), currentVault.icpPublicAddress, payload);
-        const a = await api.add_or_update_vault(currentProfile.principal.toString(), currentVault.icpPublicAddress, payload);
-        console.log('set vaults called', a);
+        await api.add_or_update_vault(currentProfile.principal.toString(), currentVault.icpPublicAddress, payload);
         await setCurrentVaultSyncStatusIdb(true, true);
         setVaults((prevState) => prevState.map((v) => v.vaultID == currentVaultId ? { ...currentVault, synced: true, existsOnIc: true } : v));
 

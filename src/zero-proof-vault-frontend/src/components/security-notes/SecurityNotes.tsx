@@ -24,7 +24,7 @@ export default function SecurityNotes(): JSX.Element {
   }, [q, currentVault]);
 
   const editingNote: SecurityNote | null = useMemo(
-      () => {console.log('editingNote memo (editingNoteId changed): ', editingNoteId);return editingNoteId !== null ? filteredSecurityNotes[editingNoteId] : null},
+      () => editingNoteId !== null ? filteredSecurityNotes[editingNoteId] : null,
       [editingNoteId, filteredSecurityNotes]
   );
 
