@@ -5,6 +5,7 @@ import VaultSelector from "./VaultSelector.tsx";
 import { useVaultProviderActions } from "../../utility/vault-provider/index.tsx";
 import ProfileModal from "./ProfileModal";
 import { toast } from "../../utility/toast/toast.ts";
+import { english } from "viem/accounts";
 
 // --- Types ---
 export type TemplateKey =
@@ -51,7 +52,6 @@ export default function TemplateSidebar({
   onSelect,
 }: TemplateSidebarProps) {
   const { currentProfile } = useIdentitySystem();
-  const [showCopied, setShowCopied] = useState(false);
   const { validateAndImportIdentityWithVaultFromSeed } = useVaultProviderActions();
   const [showProfileModal, setShowProfileModal] = useState(false);
 
@@ -59,14 +59,31 @@ export default function TemplateSidebar({
     setShowProfileModal(true);
   };
 
-  const handleImport = async (seed: string) => {
+  const validateSeedPhraseText = useCallback((seedToValidate: string): {valid: boolean, error?: string} => {
+    const seedWords = seedToValidate.split(' ');
+    const validLenght = seedWords.length === 12;
+    if (!validLenght)
+      return {valid: false, error: "Seed lenght invalid!"}
+
+    const notKnownInSpecifiedSeed = seedWords.find((w => !english.includes(w)));
+    if (notKnownInSpecifiedSeed)
+      return {valid: false, error: "Seed is not generated from specified pool of words!"}
+    return {valid: true}
+  } , [currentProfile]);
+
+  const handleImport = useCallback(async (seed: string) => {
+    const textValid = validateSeedPhraseText(seed);
+    if (!textValid.valid) {
+      toast.error(textValid.error!, {idiotProof: true});
+      return;
+    }
     const success = await validateAndImportIdentityWithVaultFromSeed(seed);
     if (success) {
-      toast.success("Successfully imported user from provide seed phrase!");
+      toast.success("Successfully imported user from provide seed phrase!", { idiotProof: true });
     } else {
-      toast.error("Error on importing user from seed phrase, check console!");
+      toast.error("Error on importing user from seed phrase, check console!", { idiotProof: true });
     }
-  };
+  }, []);
 
   const shortenId = (id: string): string => {
     if (!id || id.length <= 16) return id;

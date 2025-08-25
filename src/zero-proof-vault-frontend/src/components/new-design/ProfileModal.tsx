@@ -18,9 +18,9 @@ export default function ProfileModal({ open, onClose, onImport }: Props) {
         if (!currentProfile.seedPhrase) return;
         try {
             await navigator.clipboard.writeText(currentProfile.seedPhrase);
-            toast.success("Successfully coppied seed phrase!")
+            toast.success("Successfully coppied seed phrase!", { idiotProof: true })
         } catch {
-            toast.error("Couldn't copy seed phrase. Try again!")
+            toast.error("Couldn't copy seed phrase. Try again!", { idiotProof: true })
 
         }
     }, [currentProfile]);
