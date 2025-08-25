@@ -1,4 +1,4 @@
-# Changelog — `feature/nick-design-mbp` vs `main`
+# Changelog
 
 > **Cut date:** 2025‑08‑25 (Europe/London)
 > **Scope:** \~45 commits touching \~60+ files across UI, state, crypto, IC integration, build, and policies.
