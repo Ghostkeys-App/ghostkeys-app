@@ -460,6 +460,8 @@ td.vault-cell {
   }
 }
 
+// Profile styles, hope it works!
+
 .profile {
   position: absolute;
   left: 0;
@@ -1929,3 +1931,63 @@ input, button {
   .toast-root .toast:hover { transform: none; }
 }
 
+// New profile, hope works!
+.gk-sidebar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+}
+
+.gk-sidebar .profile.profile-cta {
+  position: sticky;                 /* <-- instead of absolute */
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  margin: auto 18px 12px;           /* top:auto pushes it down; side gutters 18px */
+  z-index: 1;                       /* stay above nav content */
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: var(--gk-pad-y) var(--gk-pad-x);
+  border-radius: var(--gk-radius-lg);
+  background: var(--gk-item-bg);
+  color: rgba(var(--gk-text), .95);
+  cursor: pointer;
+  user-select: none;
+  backdrop-filter: saturate(120%) blur(1px);
+  box-shadow: 0 10px 24px rgba(0,0,0,.18);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+
+.gk-sidebar .profile.profile-cta:hover {
+  background: var(--gk-item-bg-hover);
+  transform: translateX(2px);
+}
+.gk-sidebar .profile.profile-cta:active { transform: translateX(1px) scale(.99); }
+.gk-sidebar .profile.profile-cta:focus-visible {
+  outline: 2px solid rgba(255,255,255,.35);
+  outline-offset: 3px;
+}
+
+.gk-sidebar .profile.profile-cta .profile-icon {
+  width: 50px; height: 40px; border-radius: 50%;
+  filter: drop-shadow(0 1px 6px rgba(255,255,255,.35));
+}
+.gk-sidebar .profile.profile-cta .profile-text { display:flex; flex-direction:column; line-height:1.1; min-width:0; }
+.gk-sidebar .profile.profile-cta .profile-label { font-weight:600; font-size:18px; color: rgba(var(--gk-text), .95); }
+.gk-sidebar .profile.profile-cta .profile-id { font-size:14px; color: rgba(var(--gk-text), .75); opacity:.85; }
+
+.gk-sidebar .profile.profile-cta .chevron {
+  margin-left:auto; width:16px; height:16px; opacity:.7;
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+.gk-sidebar .profile.profile-cta:hover .chevron { transform: translateX(2px); opacity:.95; }
+
+@keyframes gk-profile-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(var(--gk-text), .32) }
+  70% { box-shadow: 0 0 0 14px rgba(var(--gk-text), 0) }
+  100% { box-shadow: 0 0 0 0 rgba(var(--gk-text), 0) }
+}
+.pulse-once { animation: gk-profile-pulse 2.2s ease-out 1; }
