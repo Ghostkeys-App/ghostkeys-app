@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import GKModal from "../new-design/GKModal.tsx";
 import {toast} from "../../utility/toast";
 
-const STAGING_PASSWORD = "letmein";
+const STAGING_PASSWORD = "You_shall_not_pasS69";
 
 export function PasswordGate({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
