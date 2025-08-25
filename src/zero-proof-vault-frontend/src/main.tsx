@@ -6,6 +6,7 @@ import './index.scss';
 import { APIContextProvider } from './utility/api/APIContext';
 import {VaultContextProvider} from "./utility/vault-provider";
 import {ToastProvider} from "./utility/toast";
+import {PasswordGate} from "./components/modals/SecurityModal.tsx";
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <>
@@ -13,7 +14,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <APIContextProvider>
          <VaultContextProvider>
            <ToastProvider>
-             <App />
+             <PasswordGate>
+               <App />
+             </PasswordGate>
            </ToastProvider>
          </VaultContextProvider>
       </APIContextProvider>
