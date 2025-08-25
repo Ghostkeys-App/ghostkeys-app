@@ -228,7 +228,7 @@ export default function VaultSelector() {
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         title="Delete vault?"
-        description="This removes the current vault from your device. If it isn't synced to the Internet Computer, the data will be lost. This cannot be undone."
+        description="This will remove selected vault from your device and IC storage. Are you sure you want to proceed?"
         width="sm"
         actions={
           <>
