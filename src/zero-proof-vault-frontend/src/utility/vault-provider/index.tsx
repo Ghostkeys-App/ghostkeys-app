@@ -176,9 +176,10 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
                 data: data
             };
             await saveVaultToIDB(newVault);
+            newVaults.push(newVault);
         }
+        setCurrentVaultId(newVaults?.[0]?.vaultID || null);
         setVaults(newVaults);
-        setCurrentVaultId(newVaults?.[0]?.vaultID);
     }, []);
     const saveVaultToIDB = useCallback(async (vault: Vault): Promise<void> => {
         if (!db.current) throw new Error("DB not initialized");
