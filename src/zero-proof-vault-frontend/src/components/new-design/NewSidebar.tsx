@@ -2,6 +2,7 @@ import React, {useState} from "react";
 import { Globe, Lock, CreditCard, IdCard, Grid3X3 } from "lucide-react";
 import {useIdentitySystem} from "../../utility/identity";
 import VaultSelector from "./VaultSelector.tsx";
+import { useVaultProviderActions } from "../../utility/vault-provider/index.tsx";
 
 // --- Types ---
 export type TemplateKey =
@@ -50,6 +51,18 @@ export default function TemplateSidebar({
   const { currentProfile } = useIdentitySystem();
   const id = currentProfile.principal.toString();
   const [showCopied, setShowCopied] = useState(false);
+  const { validateAndImportIdentityWithVaultFromSeed } = useVaultProviderActions();
+
+  const importUserFromSeedPrase = async () => {
+    const seedPhrase = prompt("Import User from seed phrase")?.trim();
+    if (!seedPhrase) return;
+    console.log("New seed phrase: ", seedPhrase);
+    const success = await validateAndImportIdentityWithVaultFromSeed(seedPhrase);
+    if(success){
+
+      alert("User from seed imported!");
+    } 
+  };
 
   const copyToClipboard = async () => {
     if (id) {
@@ -128,7 +141,7 @@ export default function TemplateSidebar({
         </nav>
 
         <div className="profile">
-          <img src={'/ghost-white.png'} alt={'logo'} className={'profile-icon'}></img>
+          <img src={'/ghost-white.png'} alt={'logo'} className={'profile-icon'} onClick={importUserFromSeedPrase}></img>
           {currentProfile?.principal.toString() || "Anon"}
           {id && (
               <div

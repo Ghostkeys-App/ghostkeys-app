@@ -112,17 +112,24 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const saveProfile = async (profile: UserProfile) => {
+  const saveProfile = useCallback(async (profile: UserProfile) => {
     if (!db.current) throw new Error("DB not initialized");
-    const tx = db.current.transaction(PROFILES_STORE, "readwrite");
-    const iProfile: indexDBProfile = {
-      userID: profile.userID,
-      seedPhrase: profile.seedPhrase
-    }
-    tx.objectStore(PROFILES_STORE).put(iProfile);
-  };
+    await new Promise<void>((res, rej) => {
+      const tx = db.current!.transaction(PROFILES_STORE, "readwrite");
+      const store = tx.objectStore(PROFILES_STORE)
+      const iProfile: indexDBProfile = {
+        userID: profile.userID,
+        seedPhrase: profile.seedPhrase
+      }
+      const req = store.put(iProfile);
+      req.onerror = () => rej(req.error);
+      tx.onabort = () => rej(tx.error ?? new Error("IDB tx aborted"));
+      tx.onerror = () => rej(tx.error ?? new Error("IDB tx error"));
+      tx.oncomplete = () => res();
+    });
+  }, []);
 
-  const eraceCurrentProfile = async () => {
+  const eraceCurrentProfile = useCallback(async () => {
     if (!db.current) throw new Error("DB not initialized");
     await new Promise<void>((res, rej) => {
       const tx = db.current!.transaction(PROFILES_STORE, "readwrite");
@@ -133,14 +140,14 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
       tx.onerror = () => rej(tx.error ?? new Error("IDB identity tx error"));
       tx.oncomplete = () => res();
     });
-  }
+  }, []);
 
   // User Profile UI on Import SEED Phrase
-  const switchProfile = async (profile: UserProfile) => {
+  const switchProfile = useCallback(async (profile: UserProfile) => {
     await eraceCurrentProfile();
     await saveProfile(profile);
     setCurrentProfile(profile);
-  };
+  }, [currentProfile]);
 
   const contextValue: IdentityContextType = {
     currentProfile,
