@@ -1498,7 +1498,7 @@ input, button {
 
 
 /* ===== GK MODAL (No libs) ===== */
-.gk-modal-root { position: relative; z-index: 9999; }
+.gk-modal-root { position: relative; z-index: 9998; }
 
 .gk-modal-overlay {
   position: fixed; inset: 0; display: grid; place-items: center;
@@ -1770,8 +1770,6 @@ input, button {
 // Toast
 .toast-root {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
   z-index: 9999;
   display: flex;
   flex-direction: column;
@@ -1779,6 +1777,10 @@ input, button {
   pointer-events: none;
   perspective: 1000px;
   isolation: isolate;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
 
   &::before {
     content: "";
@@ -1886,11 +1888,26 @@ input, button {
       text-shadow: 0 1px 0 rgba(0,0,0,.15);
     }
 
+    &.idiot-proof {
+      min-width: initial;
+      max-width: min(800px, 90vw);
+      padding: 18px 22px;
+
+      .toast-icon {
+        width: 45px;
+      }
+
+      .toast-message {
+        line-height: 2;
+        font-size: 21px;
+      }
+    }
+
     &:active { transform: translate3d(0, 8px, 0) scale(.995); }
   }
 }
 @keyframes toast-in {
-  0%   { opacity: 0; transform: translate3d(0, 16px, 0) scale(.98) rotateX(2deg); }
+  0%   { opacity: 0; transform: translate3d(0, -16px, 0) scale(.98) rotateX(-2deg); }
   60%  { opacity: 1; transform: translate3d(0, 0, 0) scale(1.005) rotateX(0deg); }
   100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1) rotateX(0deg); }
 }

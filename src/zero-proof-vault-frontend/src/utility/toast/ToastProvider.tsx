@@ -16,6 +16,7 @@ export const ToastProvider: React.FC<React.PropsWithChildren> = ({ children }) =
       message: opts.message,
       type: opts.type ?? 'info',
       durationMs: opts.durationMs ?? 3000,
+      idiotProof: opts.idiotProof ?? false,
     };
     setToasts(prev => [...prev, t]);
 
@@ -48,7 +49,7 @@ export const ToastProvider: React.FC<React.PropsWithChildren> = ({ children }) =
         {createPortal(
             <div>
               {toasts.map(t => (
-                  <Toast key={t.id} message={t.message} type={t.type} style={{ ['--dur' as any]: `${t.durationMs}ms` }} />
+                  <Toast key={t.id} message={t.message} type={t.type} idiotProof={t.idiotProof} style={{ ['--dur' as any]: `${t.durationMs}ms` }} />
               ))}
             </div>,
             portalRoot
@@ -57,8 +58,8 @@ export const ToastProvider: React.FC<React.PropsWithChildren> = ({ children }) =
   );
 };
 
-const Toast: React.FC<{ message: string; type: ToastType; style?: React.CSSProperties }> = ({ message, type, style }) => (
-    <div className={`toast ${type}`} style={style}>
+const Toast: React.FC<{ message: string; type: ToastType; style?: React.CSSProperties, idiotProof?: boolean }> = ({ message, type, idiotProof, style }) => (
+    <div className={`toast ${type} ${idiotProof ? 'idiot-proof' : ''}`} style={style}>
       <img className="toast-icon" src={funnyGhostIcon} alt={'funny-ghost'}/>
       <div className="toast-message">{message}</div>
     </div>

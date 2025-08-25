@@ -5,6 +5,7 @@ export type ToastOptions = {
   id?: number;
   type?: ToastType;
   durationMs?: number;
+  idiotProof?: boolean;
 };
 
 type AddToastFn = (opts: ToastOptions) => void;
