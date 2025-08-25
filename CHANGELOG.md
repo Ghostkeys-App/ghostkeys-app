@@ -35,6 +35,14 @@ Migration checklist:
 
 ## 🧭 UI/UX Changes
 
+### UI Before/After
+
+#### Before
+![alt text](doc_assets/Before.png)
+
+#### After
+![alt text](doc_assets/After.png)
+
 ### Website Logins
 
 * **Routes & Layout**: adds a dedicated page with a two‑pane or table‑first layout (depending on viewport).

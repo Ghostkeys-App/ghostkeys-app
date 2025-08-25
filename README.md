@@ -75,10 +75,10 @@ GhostKeys is split into three logical parts:
 ### High-Level call diagrams
 
 #### Shared Vault Canister
-![alt text](GhostkeysArchVaultCalls.png)
+![alt text](doc_assets/GhostkeysArchVaultCalls.png)
 
 #### Factory Canister
-![alt text](GhostKeysArchFactoryCalls.png)
+![alt text](doc_assets/GhostKeysArchFactoryCalls.png)
 
 ---
 
