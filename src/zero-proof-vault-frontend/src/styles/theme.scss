@@ -1486,13 +1486,15 @@ input, button {
 
 /* Editor overlay (single input) */
 .cell-editor {
+  box-sizing: border-box;
   position: absolute;
   border: 1px solid #3a4a86;
   background: #0f173a;
   color: #fff;
   outline: none;
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 6px;
+  border-radius: 0;
+  font: 13px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;
   z-index: 2;
 }
 

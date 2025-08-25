@@ -100,3 +100,6 @@ export const exportRange = (sel: { r0: number; c0: number; r1: number; c1: numbe
   }
   return out.join("\n");
 }
+
+export const isSingle = (s: {r0:number;c0:number;r1:number;c1:number}) =>
+    s.r0 === s.r1 && s.c0 === s.c1;

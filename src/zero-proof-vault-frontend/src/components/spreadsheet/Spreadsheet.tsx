@@ -5,7 +5,7 @@ import {
   colName,
   drawEye,
   exportRange,
-  fitCanvasToCSSPixels,
+  fitCanvasToCSSPixels, isSingle,
   keyOf,
   parseKey,
   pointInRect,
@@ -39,7 +39,7 @@ const COLS_DEFAULT_AMOUNT = 50;
 type ColumnMeta = { name: string; masked: boolean };
 
 export default function SpreadsheetCanvas(): JSX.Element {
-  const { currentVault } = useVaultProviderState();
+  const { currentVault, currentVaultId } = useVaultProviderState();
   const { saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend } = useVaultProviderActions();
 
   const model = React.useRef({
@@ -81,7 +81,41 @@ export default function SpreadsheetCanvas(): JSX.Element {
       if (!currentVault) return;
       applySpreadsheetFromVault(currentVault.data);
     })();
-  }, [currentVault]);
+  }, [currentVaultId]);
+
+  React.useEffect(() => {
+    // Always show editor for a single-cell selection; hide it for ranges/headers
+    if (!isSingle(sel)) {
+      if (editing) setEditing(false);
+      return;
+    }
+
+    // compute rect & value for the selected cell
+    const { r0, c0 } = sel;
+    const vi = visibleIndexOf(c0);
+    if (vi === -1) { // hidden or offscreen
+      if (editing) setEditing(false);
+      return;
+    }
+
+    // keep overlay aligned to current scroll
+    syncViewFromWrap();
+
+    const val = model.current.data.get(keyOf(r0, c0)) ?? "";
+
+    setEditVal(val);
+    setEditRect({
+      left: HDR_W + vi * COL_W,
+      top:   HDR_H + r0 * ROW_H,
+      width: COL_W,
+      height: ROW_H,
+    });
+
+    if (!editing) setEditing(true);
+
+    // next paint
+    scheduleDraw();
+  }, [sel, editing]);
 
 
   // Main draw functions
@@ -649,10 +683,6 @@ export default function SpreadsheetCanvas(): JSX.Element {
       setHdrEditing({ c: hit.c, value: getColName(hit.c), rect });
       return;
     }
-
-    if (hit.kind === "cell") {
-      beginEdit(hit.r, hit.c);
-    }
   }
 
   function beginEdit(r: number, c: number) {
@@ -673,13 +703,21 @@ export default function SpreadsheetCanvas(): JSX.Element {
     scheduleDraw();
   }
 
-  async function commitEdit() {
+  async function commitEdit(refocus: boolean = true) {
     const { r0, c0 } = sel;
     const k = keyOf(r0, c0);
+    const prevVal = model.current.data.get(k);
+
+    if (prevVal == editVal || (!prevVal && !editVal)) {
+      setEditing(false);
+      if (refocus) requestAnimationFrame(focusHost);
+      return;
+    }
+
     if (editVal === "") model.current.data.delete(k);
     else model.current.data.set(k, editVal);
     setEditing(false);
-    requestAnimationFrame(focusHost);
+    if (refocus) requestAnimationFrame(focusHost);
     scheduleDraw();
     await saveSpreadsheetToIDB();
   }
@@ -708,6 +746,9 @@ export default function SpreadsheetCanvas(): JSX.Element {
 
   // Keyboard: nav, copy, edit, hide/unhide
   async function onKeyDown(e: React.KeyboardEvent) {
+    // If the focused element is the cell editor, let its handler manage keys
+    if ((e.target as HTMLElement)?.classList?.contains('cell-editor')) return;
+
     const { r0, c0, r1, c1 } = sel;
     const r = Math.min(r0, r1), c = Math.min(c0, c1);
 
@@ -840,47 +881,52 @@ export default function SpreadsheetCanvas(): JSX.Element {
 
   // Paste (Excel/Sheets): fill across visible columns
   async function onPaste(e: React.ClipboardEvent) {
-    if (editing || hdrEditing) return; // let input handle it
-    const txt = e.clipboardData.getData("text/plain");
-    if (!txt) return;
-    e.preventDefault();
+    if (hdrEditing) return;
 
-    const rows = txt.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-    const parsed: string[][] = rows
-      .filter((line, i) => line.length > 0 || i < rows.length - 1)
-      .map(line => (line.includes("\t") ? line.split("\t") : splitCsv(line)).map(s => s ?? ""));
+    if (editing) {
+      e.preventDefault(); // prevent inserting into the input
+      await commitEdit();
+      // re-dispatch a synthetic paste to the host after commit
+      const txt = e.clipboardData.getData("text/plain");
+      if (!txt) return;
+      // --- paste logic exactly as you already have (parsed / fill map / save) ---
+      const rows = txt.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+      const parsed: string[][] = rows
+          .filter((line, i) => line.length > 0 || i < rows.length - 1)
+          .map(line => (line.includes("\t") ? line.split("\t") : splitCsv(line)).map(s => s ?? ""));
 
-    const startR = Math.min(sel.r0, sel.r1);
-    const startC = Math.min(sel.c0, sel.c1);
+      const startR = Math.min(sel.r0, sel.r1);
+      const startC = Math.min(sel.c0, sel.c1);
 
-    // Build visible list so we can skip hidden cols while pasting
-    const vis = getVisibleCols();
-    let startVI = visibleIndexOf(startC);
-    if (startVI === -1) startVI = 0;
+      const vis = getVisibleCols();
+      let startVI = visibleIndexOf(startC);
+      if (startVI === -1) startVI = 0;
 
-    const needRows = startR + parsed.length;
-    const needCols = vis[startVI] + (parsed[0]?.length || 1);
-    ensureSize(needRows, needCols);
+      const needRows = startR + parsed.length;
+      const needCols = vis[startVI] + (parsed[0]?.length || 1);
+      ensureSize(needRows, needCols);
 
-    for (let i = 0; i < parsed.length; i++) {
-      for (let j = 0; j < parsed[i].length; j++) {
-        const vi = startVI + j;
-        if (vi >= vis.length) break;
-        const logicalC = vis[vi];
-        model.current.data.set(keyOf(startR + i, logicalC), parsed[i][j]);
+      for (let i = 0; i < parsed.length; i++) {
+        for (let j = 0; j < parsed[i].length; j++) {
+          const vi = startVI + j;
+          if (vi >= vis.length) break;
+          const logicalC = vis[vi];
+          model.current.data.set(keyOf(startR + i, logicalC), parsed[i][j]);
+        }
       }
+
+      const endVI = Math.min(startVI + (parsed[0]?.length || 1) - 1, vis.length - 1);
+      setSel({
+        r0: startR,
+        c0: vis[startVI],
+        r1: startR + parsed.length - 1,
+        c1: vis[endVI],
+      });
+      scheduleDraw();
+      requestAnimationFrame(focusHost);
+      await saveSpreadsheetToIDB();
+      return;
     }
-    // Update selection to pasted rect (visible columns)
-    const endVI = Math.min(startVI + (parsed[0]?.length || 1) - 1, vis.length - 1);
-    setSel({
-      r0: startR,
-      c0: vis[startVI],
-      r1: startR + parsed.length - 1,
-      c1: vis[endVI],
-    });
-    scheduleDraw();
-    requestAnimationFrame(focusHost);
-    await saveSpreadsheetToIDB();
   }
 
   function ensureSize(minRows: number, minColsLogical: number) {
@@ -1077,25 +1123,6 @@ export default function SpreadsheetCanvas(): JSX.Element {
         </div>
       </div>
 
-      {/*<div className="sheet-head">*/}
-      {/*  <div className="sheet-title">*/}
-      {/*    <span className="sheet-ghost">👻</span>*/}
-      {/*    <h1>Spreadsheet</h1>*/}
-      {/*  </div>*/}
-      {/*  <div className="sheet-actions" style={{display: "flex", gap: 10}}>*/}
-      {/*    <button className="gk-btn gk-btn-add" onClick={addRowBelow}>+ Row</button>*/}
-      {/*    <button className="gk-btn gk-btn-add" onClick={addColRight}>+ Col</button>*/}
-
-      {/*    <button className="gk-btn gk-btn-save" onClick={hideSelectedCol} title="Hide selected column (Ctrl/Cmd+H)">*/}
-      {/*      Hide col*/}
-      {/*    </button>*/}
-      {/*    <button className="gk-btn gk-btn-save" onClick={unhideSelectedCol}>Unhide col</button>*/}
-      {/*    <button className="gk-btn gk-btn-save" onClick={showAllCols}>Show all</button>*/}
-
-      {/*    <button className="gk-btn gk-btn-export" onClick={clearAll}>Clear</button>*/}
-      {/*  </div>*/}
-      {/*</div>*/}
-
       {/* Scroll host */}
       <div
         className="sheet-host"
@@ -1126,17 +1153,54 @@ export default function SpreadsheetCanvas(): JSX.Element {
             autoFocus
             value={editVal}
             onChange={(e) => setEditVal(e.target.value)}
-            onBlur={commitEdit}
-            onKeyDown={(e) => {
+            onBlur={() => {commitEdit()}}
+            onMouseDown={(e) => {e.stopPropagation()}}
+            onKeyDown={async (e) => {
+              // Keep existing Enter/Escape behavior
               if (e.key === "Enter") {
                 e.preventDefault();
                 e.stopPropagation();
-                commitEdit();
+                await commitEdit();
+                // Move down one row (Excel-like)
+                const r = clamp(Math.min(sel.r0, sel.r1) + 1, 0, model.current.rows - 1);
+                const c = Math.min(sel.c0, sel.c1);
+                setSingleSelection(r, c);
+                return;
               }
               if (e.key === "Escape") {
                 e.preventDefault();
                 e.stopPropagation();
                 cancelEdit();
+                return;
+              }
+
+              // NEW: Arrow navigation and Tab from inside the editor
+              if (
+                  e.key === "ArrowLeft" ||
+                  e.key === "ArrowRight" ||
+                  e.key === "ArrowUp" ||
+                  e.key === "ArrowDown" ||
+                  e.key === "Tab"
+              ) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Commit current cell first
+                await commitEdit();
+
+                // Compute next target
+                const vis = getVisibleCols();
+                const curR = Math.min(sel.r0, sel.r1);
+                const curC = Math.min(sel.c0, sel.c1);
+                let nextR = curR;
+                let nextC = curC;
+
+                if (e.key === "ArrowLeft" || (e.key === "Tab" && e.shiftKey)) nextC = clamp(curC - 1, 0, model.current.cols - 1);
+                if (e.key === "ArrowRight" || (e.key === "Tab" && !e.shiftKey)) nextC = clamp(curC + 1, 0, model.current.cols - 1);
+                if (e.key === "ArrowUp") nextR = clamp(curR - 1, 0, model.current.rows - 1);
+                if (e.key === "ArrowDown") nextR = clamp(curR + 1, 0, model.current.rows - 1);
+
+                setSingleSelection(nextR, nextC);
               }
             }}
           />
