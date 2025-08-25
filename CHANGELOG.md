@@ -20,7 +20,7 @@
 
 ## 🔄 Breaking / Behavior Changes
 
-* **Navigation default** now lands users in **Website Logins** instead of a generic home.
+* **Templates** now encompass three types — **Spreadsheet**, **Secure Notes**, and **Website Logins** — with navigation **defaulting** to Website Logins for a more **practical entry point**.
 * **Vault reload button** added in sidebar; **disabled** when `currentVault.existsOnIc === false` (no on‑chain copy to pull from).
 * **Seed import** now **bootstraps vault state** immediately (initial vault selection, IDB write, and UI hydration).
 * **Actor initialization order** is now **factory‑first**; code relying on direct per‑canister IDs must adapt.
@@ -45,7 +45,7 @@ Migration checklist:
 
 ### Sidebar & Profile
 
-* **Current vault control**: next to the current vault label/button (`gk-vault-toggle`), a **kebab (vertical dots)** affordance reveals **Pencil (rename)** and **Trash (delete)** with a short slide animation.
+* **Current vault control**: next to the current vault label/button (`gk-vault-toggle`), a **vertical dots** affordance reveals **Pencil (rename)** and **Trash (delete)** with a short slide animation.
 * **Reload from IC** button: subtle, near the Profile block, full width, low‑chromatic contrast ("utility" look).
 
   * **Enabled** only when an IC copy exists; otherwise **disabled** with a helpful tooltip.
