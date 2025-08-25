@@ -1,11 +1,12 @@
-import React, { useCallback, useState } from "react";
-import { Globe, Lock, Grid3X3 } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import { Globe, Lock, Grid3X3, RotateCcw } from "lucide-react";
 import { useIdentitySystem } from "../../utility/identity";
 import VaultSelector from "./VaultSelector.tsx";
-import { useVaultProviderActions } from "../../utility/vault-provider/index.tsx";
+import { useVaultProviderActions, useVaultProviderState } from "../../utility/vault-provider/index.tsx";
 import ProfileModal from "./ProfileModal";
 import { toast } from "../../utility/toast/toast.ts";
 import { english } from "viem/accounts";
+import GKModal from "./GKModal.tsx";
 
 // --- Types ---
 export type TemplateKey =
@@ -54,10 +55,41 @@ export default function TemplateSidebar({
   const { currentProfile } = useIdentitySystem();
   const { validateAndImportIdentityWithVaultFromSeed } = useVaultProviderActions();
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [confirmReloadOpen, setConfirmReloadOpen] = useState(false);
+  const [canReload, setCanReload] = useState(false);
+
+  const { currentVault } = useVaultProviderState();
+  const { getICVault, saveCurrentVaultDataToIDB } = useVaultProviderActions();
+
+  useEffect(() => {
+    setCanReload(!!currentVault?.existsOnIc);
+  }, [currentVault]);
 
   const openProfile = () => {
     setShowProfileModal(true);
   };
+
+  const doReload = useCallback(async () => {
+    if (currentVault?.existsOnIc) {
+      const vaultFromIC = await getICVault(currentVault.icpPublicAddress);
+      if (vaultFromIC === null) {
+        toast.error("Failed to get vault from Storage.");
+        return;
+      }
+      await saveCurrentVaultDataToIDB(vaultFromIC.data, true, vaultFromIC.vaultName);
+      toast.success("Reloaded from Storage.");
+    } else {
+      toast.error("No saved version found in Storage.");
+    }
+  }, [currentVault]);
+
+  const onReloadClick = useCallback(() => {
+    if (currentVault && !currentVault.synced) {
+      setConfirmReloadOpen(true);
+    } else {
+      void doReload();
+    }
+  }, [currentVault]);
 
   const validateSeedPhraseText = useCallback((seedToValidate: string): { valid: boolean, error?: string } => {
     const seedWords = seedToValidate.split(' ');
@@ -96,72 +128,111 @@ export default function TemplateSidebar({
       role="navigation"
       aria-label="Templates"
     >
-      <img src={'/white-logo.png'} alt={'logo'} className={'logo'}></img>
+      <div className="gk-div-separator">
+        <img src={'/white-logo.png'} alt={'logo'} className={'logo'}></img>
 
-      <VaultSelector />
+        <VaultSelector />
 
-      <nav className="flex flex-col gap-2 gk-nav">
-        {TEMPLATES.map((t) => {
-          const isActive = t.key === selected;
-          return (
-            <button
-              onClick={() => onSelect(t.key)}
-              className={cx(
-                "gk-item",
-                t.key
-              )}
-              aria-current={isActive ? "page" : undefined}
-              data-key={t.key}
-            >
-              {/* Icon */}
-              <t.icon
-                className={"gk-icon"}
-                strokeWidth={2.25}
-              />
-              {/* Label */}
-              <span className={"gk-label"}>{t.label}</span>
-              {/* Right affordance – optional chevron hint */}
-              <svg
-                className={"gk-chevron"}
-                viewBox="0 0 20 20"
-                fill="none"
-                aria-hidden
+        <nav className="flex flex-col gap-2 gk-nav">
+          {TEMPLATES.map((t) => {
+            const isActive = t.key === selected;
+            return (
+              <button
+                onClick={() => onSelect(t.key)}
+                className={cx(
+                  "gk-item",
+                  t.key
+                )}
+                aria-current={isActive ? "page" : undefined}
+                data-key={t.key}
               >
-                <path d="M7 5l6 5-6 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                  strokeLinejoin="round" />
-              </svg>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div
-        className="profile profile-cta"
-        role="button"
-        tabIndex={0}
-        aria-label="Open profile settings"
-        onClick={openProfile}
-        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openProfile()}
-        data-tip="Profile & Settings"
-      >
-        <img
-          src={"/ghost-white.png"}
-          alt={"profile"}
-          className={"profile-icon pulse-once"}
-        />
-        <div className="profile-text">
-          <span className="profile-label">Profile</span>
-          <span className="profile-id">{shortenId(currentProfile.principal.toString())}</span>
+                {/* Icon */}
+                <t.icon
+                  className={"gk-icon"}
+                  strokeWidth={2.25}
+                />
+                {/* Label */}
+                <span className={"gk-label"}>{t.label}</span>
+                {/* Right affordance – optional chevron hint */}
+                <svg
+                  className={"gk-chevron"}
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  aria-hidden
+                >
+                  <path d="M7 5l6 5-6 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                    strokeLinejoin="round" />
+                </svg>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+      <div className="gk-div-profile-separator">
+        <button
+          disabled={!canReload}
+          aria-disabled={!canReload}
+          type="button"
+          className={`gk-ic-reload ${!canReload ? "is-disabled" : ""}`}
+          onClick={onReloadClick}
+          title="Discard local changes & reload saved version from IC"
+        >
+          <RotateCcw size={16} strokeWidth={2.25} />
+          <span>Reload from Storage</span>
+        </button>
+        <div
+          className="profile profile-cta"
+          role="button"
+          tabIndex={0}
+          aria-label="Open profile settings"
+          onClick={openProfile}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openProfile()}
+          data-tip="Profile & Settings"
+        >
+          <img
+            src={"/ghost-white.png"}
+            alt={"profile"}
+            className={"profile-icon pulse-once"}
+          />
+          <div className="profile-text">
+            <span className="profile-label">Profile</span>
+            <span className="profile-id">{shortenId(currentProfile.principal.toString())}</span>
+          </div>
+          <svg className="chevron" viewBox="0 0 20 20" aria-hidden>
+            <path d="M7 5l6 5-6 5" stroke="currentColor" strokeWidth="2" fill="none" />
+          </svg>
         </div>
-        <svg className="chevron" viewBox="0 0 20 20" aria-hidden>
-          <path d="M7 5l6 5-6 5" stroke="currentColor" strokeWidth="2" fill="none" />
-        </svg>
       </div>
       <ProfileModal
         open={showProfileModal}
         onClose={() => setShowProfileModal(false)}
         onImport={handleImport}
       />
+      <GKModal
+        open={confirmReloadOpen}
+        onClose={() => setConfirmReloadOpen(false)}
+        title="Reload from IC?"
+        description="This will discard unsynced local changes and reload the saved version from the Internet Computer."
+        width="sm"
+        actions={
+          <>
+            <button className="gk-btn ghost" onClick={() => setConfirmReloadOpen(false)}>Cancel</button>
+            <button
+              className="gk-btn danger"
+              onClick={async () => { await doReload(); setConfirmReloadOpen(false); }}
+            >
+              Reload
+            </button>
+          </>
+        }
+      >
+        <div className="gk-form">
+          <label className="gk-field">
+            <span>Current Vault</span>
+            <input disabled value={currentVault?.vaultName ?? "—"} />
+          </label>
+        </div>
+      </GKModal>
     </aside>
   );
 }

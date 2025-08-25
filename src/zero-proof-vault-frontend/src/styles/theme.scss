@@ -1947,12 +1947,12 @@ input, button {
   display: flex;
   flex-direction: column;
   padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  justify-content: space-between;
 }
 
 .gk-sidebar .profile.profile-cta {
   position: sticky;                 /* <-- instead of absolute */
   bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  margin: auto 18px 12px;           /* top:auto pushes it down; side gutters 18px */
   z-index: 1;                       /* stay above nav content */
 
   display: flex;
@@ -2063,3 +2063,72 @@ input, button {
 .icon-btn:hover { background: var(--gk-item-bg-hover); }
 .icon-btn:active { transform: translateY(1px); }
 .icon-btn.danger { color: #ff6b6b; }
+
+
+
+/* Subtle reload button, same footprint as the Profile chip */
+.gk-sidebar .gk-ic-reload {
+  margin-bottom: 40px; // IMPORTANT, NEED FIXING
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: var(--gk-pad-y) var(--gk-pad-x);
+  border-radius: var(--gk-radius-lg);
+  background: color-mix(in oklab, var(--gk-item-bg), transparent 25%); /* subtle */
+  color: color-mix(in oklab, rgba(var(--gk-text),1), transparent 40%);
+  opacity: .7;
+
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity .15s ease, background .15s ease, color .15s ease, transform .12s ease;
+  box-shadow: 0 8px 20px rgba(0,0,0,.12);
+}
+
+.gk-sidebar .gk-ic-reload:hover,
+.gk-sidebar .gk-ic-reload:focus-visible {
+  opacity: 1;
+  background: var(--gk-item-bg);
+  color: rgba(var(--gk-text), .95);
+}
+
+.gk-sidebar .gk-ic-reload:active { transform: translateY(1px); }
+
+.gk-sidebar .gk-ic-reload svg {
+  width: 16px; height: 16px; display: block;
+  stroke: currentColor !important; stroke-width: 2.25 !important; fill: none !important;
+  vector-effect: non-scaling-stroke;
+}
+
+.gk-sidebar .gk-div-separator {
+  display: flex;
+  flex-direction: column;
+}
+.gk-sidebar .gk-div-profile-separator {
+  display: flex;
+  flex-direction: column;
+}
+
+.gk-sidebar .gk-ic-reload[disabled],
+.gk-sidebar .gk-ic-reload.is-disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.gk-sidebar .gk-ic-reload[disabled]:hover,
+.gk-sidebar .gk-ic-reload.is-disabled:hover,
+.gk-sidebar .gk-ic-reload[disabled]:focus-visible,
+.gk-sidebar .gk-ic-reload.is-disabled:focus-visible {
+  background: color-mix(in oklab, var(--gk-item-bg), transparent 25%);
+  color: color-mix(in oklab, rgba(var(--gk-text),1), transparent 40%);
+  transform: none;
+}
+
+/* keep icon visible even when disabled */
+.gk-sidebar .gk-ic-reload svg {
+  stroke: currentColor !important;
+  stroke-width: 2.25 !important;
+  fill: none !important;
+}
