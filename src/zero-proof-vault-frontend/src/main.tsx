@@ -6,7 +6,7 @@ import './index.scss';
 import { APIContextProvider } from './utility/api/APIContext';
 import {VaultContextProvider} from "./utility/vault-provider";
 import {ToastProvider} from "./utility/toast";
-import {PasswordGate} from "./components/modals/SecurityModal.tsx";
+import {PasswordGate} from "./components/modals/password-gate-modal";
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <>

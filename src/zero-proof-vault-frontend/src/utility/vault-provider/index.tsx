@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
+import Loader from "../loader/Loader.tsx";
 import { useIdentitySystem } from "../identity";
 import {
     aesDecrypt,
@@ -540,7 +540,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         [createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC]
     );
 
-    if (!isReady) return <LoadingAnimation />;
+    if (!isReady) return <Loader />;
     return (
         <VaultStateContext.Provider value={state}>
             <VaultActionsContext.Provider value={actions}>
