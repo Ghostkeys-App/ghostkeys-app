@@ -14,7 +14,7 @@ import {
 } from "./constants";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
 import { Principal } from "@dfinity/principal";
-import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
+import Loader from "../loader/Loader.tsx";
 import { derivePrincipalAndIdentityFromSeed, generateSeedAndIdentityPrincipal } from "../crypto/encdcrpt";
 
 // Interfaces for User Profile
@@ -155,7 +155,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     switchProfile,
   };
 
-  if (!isReady) return <LoadingAnimation />;
+  if (!isReady) return <Loader />;
   return <IdentityContext.Provider value={contextValue}>{children}</IdentityContext.Provider>;
 }
 

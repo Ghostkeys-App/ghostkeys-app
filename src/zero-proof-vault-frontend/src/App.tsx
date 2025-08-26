@@ -1,15 +1,15 @@
 import React from "react";
 import {BrowserRouter as Router, Routes, Route, Navigate} from "react-router-dom";
-import NewDesign from "./pages/NewDesign.tsx";
-import WebsiteLogins from "./components/website-logins/WebsiteLogins.tsx";
-import SecurityNotes from "./components/security-notes/SecurityNotes.tsx";
-import SpreadsheetCanvas from "./components/spreadsheet/Spreadsheet.tsx";
+import AppShell from "./pages/app-shell/AppShell.tsx";
+import WebsiteLogins from "./pages/website-logins/WebsiteLogins.tsx";
+import SecurityNotes from "./pages/security-notes/SecurityNotes.tsx";
+import SpreadsheetCanvas from "./pages/spreadsheet/Spreadsheet.tsx";
 
 export default function App() {
   return (
     <Router>
       <Routes>
-        <Route element={<NewDesign />}>
+        <Route element={<AppShell />}>
           <Route index element={<Navigate to="/website-logins" replace />} />
           <Route path="/spreadsheet" element={<SpreadsheetCanvas />} />
           <Route path="/website-logins" element={<WebsiteLogins />} />
