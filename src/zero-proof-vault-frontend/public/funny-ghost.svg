@@ -1,0 +1,34 @@
+<!-- Ghostkeys Ghost — white, transparent background -->
+<svg width="256" height="256" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ghostkeys ghost">
+    <defs>
+        <!-- optional: slight soft edge to keep it friendly; remove filter if you want pure flat -->
+        <filter id="soft" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="0.6" result="blur"/>
+            <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+        </filter>
+    </defs>
+
+    <!-- WHITE GHOST SHAPE with transparent eye holes -->
+    <path filter="url(#soft)" fill="#FFFFFF" fill-rule="evenodd" d="
+    M256 36
+    c -64 0 -104 23 -129 63
+      -12 20 -18 45 -34 52
+      -42 19 -64 65 -55 110
+      8 42 39 68 63 74
+      15 4 22 15 29 37
+      14 43 48 64 91 64
+      45 0 67 -23 83 -49
+      12 -19 21 -26 42 -35
+      42 -19 71 -66 67 -114
+      -4 -44 -28 -75 -69 -90
+      -18 -7 -25 -26 -35 -47
+      -21 -42 -49 -65 -123 -65
+    Z
+
+    M219 206
+      a 26 26 0 1 0 0.01 0
+    Z
+    M294 206
+      a 26 26 0 1 0 0.01 0
+    Z" />
+</svg>

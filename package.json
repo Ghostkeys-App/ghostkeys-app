@@ -14,5 +14,11 @@
   "type": "module",
   "workspaces": [
     "src/zero-proof-vault-frontend"
-  ]
+  ],
+  "dependencies": {
+    "noble": "^1.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0"
+  }
 }

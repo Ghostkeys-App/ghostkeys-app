@@ -1,5 +1,3 @@
-// (Refactored for ghostkeys MVP)
-
 import {
   createContext,
   useState,
@@ -12,71 +10,38 @@ import {
 import {
   DB_NAME,
   DB_VERSION,
-  LOCAL_STORAGE_EVM_PUBLIC_ADDRESS,
-  LOCAL_STORAGE_ICP_PUBLIC_ADDRESS,
-  LOCAL_STORAGE_ORGANIZATION_VAULT_ID,
-  LOCAL_STORAGE_SEED_PHRASE,
   PROFILES_STORE,
-  shortenAddress,
-  VAULTS_STORE,
 } from "./constants";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
 import { Principal } from "@dfinity/principal";
-import { mnemonicToAccount } from "viem/accounts";
-import { mnemonicToSeedSync } from "@scure/bip39";
-import { generate } from "random-words";
 import LoadingAnimation from "../../components/NotFound/LoadingAnimation";
+import { derivePrincipalAndIdentityFromSeed, generateSeedAndIdentityPrincipal } from "../crypto/encdcrpt";
 
-// Interfaces for Vault and User Profile
-export type Vault = {
-  vaultID: string;
-  nickname: string;
-  icpPublicAddress: string;
-  endpoint: string;
-};
-
+// Interfaces for User Profile
 export type UserProfile = {
   userID: string;
-  icpPublicAddress: string;
-  evmPublicAddress: string;
   seedPhrase: string;
-};
-
-export type AuthProfile = {
-  icpPublicKey: string;
-  evmPublicKey: string;
-  userID: string;
-  slug: string;
-  icpAccount: {
-    identity: Ed25519KeyIdentity;
-    principal: Principal;
-  } | null;
+  identity: Ed25519KeyIdentity;
+  principal: Principal;
 };
 
 export type IdentityContextType = {
-  currentVault: Vault | null;
-  currentProfile: AuthProfile | null;
-  createVault: (nickname: string) => Promise<Vault>;
-  switchVault: (vault: Vault) => void;
-  renameVault: (vaultID: string, newName: string) => Vault | undefined;
-  listVaults: () => Promise<Vault[]>;
+  currentProfile: UserProfile;
   createProfileFromSeed: (seed: string) => Promise<UserProfile>;
   switchProfile: (profile: UserProfile) => Promise<void>;
-  deriveSignatureFromPublicKey: (publicKey: string) => Promise<Uint8Array>;
 };
+
+type indexDBProfile = {
+  userID: string;
+  seedPhrase: string;
+}
 
 const IdentityContext = createContext<IdentityContextType | undefined>(undefined);
-
-const deriveEd25519KeyFromSeed = async (seed: Uint8Array): Promise<Uint8Array> => {
-  const hash = await crypto.subtle.digest("SHA-256", seed);
-  return new Uint8Array(hash).slice(0, 32);
-};
 
 export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   const db = useRef<IDBDatabase | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const [currentVault, setCurrentVault] = useState<Vault | null>(null);
-  const [currentProfile, setCurrentProfile] = useState<AuthProfile | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile>({} as any); // as any because there is no circumstances where currentProfile is used and could be possibly undefined
 
   useEffect(() => {
     const init = async () => {
@@ -84,9 +49,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
 
       request.onupgradeneeded = (e) => {
         const db = (e.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(VAULTS_STORE)) {
-          db.createObjectStore(VAULTS_STORE, { keyPath: "vaultID" });
-        }
+
         if (!db.objectStoreNames.contains(PROFILES_STORE)) {
           db.createObjectStore(PROFILES_STORE, { keyPath: "userID" });
         }
@@ -103,130 +66,93 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const bootstrap = async () => {
-    const seed = localStorage.getItem(LOCAL_STORAGE_SEED_PHRASE);
-    if (seed) {
-      const profile = await createProfileFromSeed(seed);
-      await switchProfile(profile);
+    const profile: indexDBProfile | undefined = await getUserProfile();
+    if (profile && profile.seedPhrase && profile.userID) {
+      const innerProfile = await createProfileFromSeed(profile.seedPhrase);
+      setCurrentProfile(innerProfile);
     } else {
-      const generated = (generate(12) as string[]).join(" ");
-      const profile = await createProfileFromSeed(generated);
+      const profile = await createProfileFromSeed();
       await saveProfile(profile);
-      await switchProfile(profile);
-      overwriteLocalStorage(profile);
+      setCurrentProfile(profile);
     }
   };
 
-  const overwriteLocalStorage = (profile: UserProfile) => {
-    localStorage.setItem(LOCAL_STORAGE_SEED_PHRASE, profile.seedPhrase);
-    localStorage.setItem(LOCAL_STORAGE_EVM_PUBLIC_ADDRESS, profile.evmPublicAddress);
-    localStorage.setItem(LOCAL_STORAGE_ICP_PUBLIC_ADDRESS, profile.icpPublicAddress);
-  };
+  const getUserProfile = async () => {
+    if (!db.current) throw new Error("DB not initialized");
+    const tx = db.current.transaction(PROFILES_STORE, "readwrite");
 
-  const getPrincipalFromSeed = async (seed: string): Promise<Principal> => {
-    const derivedKey = await deriveEd25519KeyFromSeed(mnemonicToSeedSync(seed));
-    const identity = Ed25519KeyIdentity.fromSecretKey(derivedKey);
-    const principal = identity.getPrincipal();
-    return principal;
+    return new Promise<indexDBProfile | undefined>((resolve, reject) => {
+      const req = tx.objectStore(PROFILES_STORE).getAll();
+      req.onsuccess = () => {
+        const indexedData = req.result[0];
+        const userProfile: indexDBProfile = {
+          userID: indexedData?.userID,
+          seedPhrase: indexedData?.seedPhrase,
+        }
+        resolve(userProfile);
+      }
+      req.onerror = () => reject(req.error);
+    });
   }
 
-  const createProfileFromSeed = useCallback(async (seed: string): Promise<UserProfile> => {
-    const evm = mnemonicToAccount(seed);
-    const principal = (await getPrincipalFromSeed(seed)).toString();
+  const createProfileFromSeed = useCallback(async (existingSeed?: string): Promise<UserProfile> => {
+    let seed, principal, identity;
+    if (existingSeed) {
+      ({ principal, identity } = await derivePrincipalAndIdentityFromSeed(existingSeed));
+      seed = existingSeed;
+    } else {
+      ({ seed, principal, identity } = await generateSeedAndIdentityPrincipal());
+    }
 
     return {
-      userID: `UserID_${principal}`,
-      icpPublicAddress: principal,
-      evmPublicAddress: evm.address,
+      userID: `UserID_${principal.toString()}`,
+      principal: principal,
+      identity: identity,
       seedPhrase: seed,
     };
   }, []);
 
-  const saveProfile = async (profile: UserProfile) => {
+  const saveProfile = useCallback(async (profile: UserProfile) => {
     if (!db.current) throw new Error("DB not initialized");
-    const tx = db.current.transaction(PROFILES_STORE, "readwrite");
-    tx.objectStore(PROFILES_STORE).put(profile);
-  };
-
-  const switchProfile = async (profile: UserProfile) => {
-    const derivedKey = await deriveEd25519KeyFromSeed(mnemonicToSeedSync(profile.seedPhrase));
-    const identity = Ed25519KeyIdentity.fromSecretKey(derivedKey);
-    const principal = identity.getPrincipal();
-
-    setCurrentProfile({
-      icpPublicKey: profile.icpPublicAddress,
-      evmPublicKey: profile.evmPublicAddress,
-      userID: profile.userID,
-      slug: shortenAddress(profile.icpPublicAddress),
-      icpAccount: {
-        identity,
-        principal,
-      },
+    await new Promise<void>((res, rej) => {
+      const tx = db.current!.transaction(PROFILES_STORE, "readwrite");
+      const store = tx.objectStore(PROFILES_STORE)
+      const iProfile: indexDBProfile = {
+        userID: profile.userID,
+        seedPhrase: profile.seedPhrase
+      }
+      const req = store.put(iProfile);
+      req.onerror = () => rej(req.error);
+      tx.onabort = () => rej(tx.error ?? new Error("IDB tx aborted"));
+      tx.onerror = () => rej(tx.error ?? new Error("IDB tx error"));
+      tx.oncomplete = () => res();
     });
-  };
+  }, []);
 
-  const createVault = async (nickname: string): Promise<Vault> => {
-    if (!currentProfile) throw new Error("No profile set");
-    const generated = (generate(12) as string[]).join(" ");
-    const tempIcpPublicAddress = (await getPrincipalFromSeed(generated)).toString();
-    const vaultID = `Vault_${tempIcpPublicAddress}`;
-    const newVault: Vault = {
-      vaultID,
-      nickname,
-      icpPublicAddress: tempIcpPublicAddress,
-      endpoint: "",
-    };
+  const eraceCurrentProfile = useCallback(async () => {
     if (!db.current) throw new Error("DB not initialized");
-    const tx = db.current.transaction(VAULTS_STORE, "readwrite");
-    tx.objectStore(VAULTS_STORE).put(newVault);
-    return newVault;
-  };
-
-  const renameVault = (vaultID: string, newName: string) => {
-    if (!db.current) throw new Error("DB not initialized");
-    if (!currentProfile) throw new Error("No profile set");
-    const tx = db.current.transaction(VAULTS_STORE, "readwrite");
-    const store = tx.objectStore(VAULTS_STORE);
-    const vault = store.get(vaultID) as unknown as Vault | undefined;
-    if (vault) {
-      vault.nickname = newName;
-      store.put(vault);
-    }
-    return vault;
-  }
-
-  const switchVault = (vault: Vault) => {
-    setCurrentVault(vault);
-    localStorage.setItem(LOCAL_STORAGE_ORGANIZATION_VAULT_ID, vault.vaultID);
-  };
-
-  const listVaults = async (): Promise<Vault[]> => {
-    if (!db.current) throw new Error("DB not initialized");
-    const tx = db.current.transaction(VAULTS_STORE, "readonly");
-    const req = tx.objectStore(VAULTS_STORE).getAll();
-    return new Promise((resolve, reject) => {
-      req.onsuccess = () => resolve(req.result as Vault[]);
-      req.onerror = () => reject("Failed to list vaults");
+    await new Promise<void>((res, rej) => {
+      const tx = db.current!.transaction(PROFILES_STORE, "readwrite");
+      const store = tx.objectStore(PROFILES_STORE);
+      const req = store.clear();
+      req.onerror = () => rej(req.error);
+      tx.onabort = () => rej(tx.error ?? new Error("IDB identity tx aborted"));
+      tx.onerror = () => rej(tx.error ?? new Error("IDB identity tx error"));
+      tx.oncomplete = () => res();
     });
-  };
+  }, []);
 
-  const deriveSignatureFromPublicKey = async (publicKey: string): Promise<Uint8Array> => {
-    const identity = currentProfile!.icpAccount?.identity;
-    const signature = await identity!.sign(new TextEncoder().encode(publicKey));
-    const keyMaterial = await crypto.subtle.digest("SHA-256", signature);
-    const derivedKey = new Uint8Array(keyMaterial).slice(0, 32);
-    return derivedKey;
-  };
+  // User Profile UI on Import SEED Phrase
+  const switchProfile = useCallback(async (profile: UserProfile) => {
+    await eraceCurrentProfile();
+    await saveProfile(profile);
+    setCurrentProfile(profile);
+  }, [currentProfile]);
 
   const contextValue: IdentityContextType = {
-    currentVault,
     currentProfile,
-    createVault,
-    switchVault,
-    renameVault,
-    listVaults,
     createProfileFromSeed,
     switchProfile,
-    deriveSignatureFromPublicKey,
   };
 
   if (!isReady) return <LoadingAnimation />;

@@ -1,0 +1,13 @@
+export const SS_BG = "#1c2754";
+export const SS_TEXT_COLOR = "#dfe7ff";
+export const SS_TEXT_BASELINE = "middle";
+export const SS_FONT = "600 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto";
+export const SS_CELL_FONT = "13px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto";
+export const SS_EYE_SIZE = 14;
+export const SS_EYE_PD_R = 6;
+export const SS_ROW_BG = "#1c2754";
+export const SS_CELL_BG = "#16214a";
+export const SS_BENDING_BG = "#18234f";
+export const SS_GRID_LINE_COLOR = "#233060";
+export const SS_SELECTION_BORDER_COLOR = "#60a5fa";
+export const SS_SELECTION_SHADOW_COLOR = "rgba(37,99,235,.35)";
