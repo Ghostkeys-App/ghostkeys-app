@@ -14,9 +14,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <APIContextProvider>
          <VaultContextProvider>
            <ToastProvider>
-             {/*<PasswordGate>*/}
+             <PasswordGate>
                <App />
-             {/*</PasswordGate>*/}
+             </PasswordGate>
            </ToastProvider>
          </VaultContextProvider>
       </APIContextProvider>
