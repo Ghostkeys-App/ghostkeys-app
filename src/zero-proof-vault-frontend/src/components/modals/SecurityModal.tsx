@@ -9,11 +9,14 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
   const [input, setInput] = useState("");
 
   useEffect(() => {
-    setOpen(true);
+    const signedIn = localStorage.getItem('signed');
+    console.log(signedIn)
+    setOpen(!signedIn);
   }, []);
 
   const handleSubmit = () => {
     if (input === STAGING_PASSWORD) {
+      localStorage.setItem('signed', '1');
       setOpen(false);
     } else {
       toast.error('Incorrect Password', {idiotProof: true});
