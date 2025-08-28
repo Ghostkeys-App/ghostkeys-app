@@ -13,6 +13,7 @@ export default function VaultSelector() {
   const [actionsOpen, setActionsOpen] = React.useState(false);
   const [renameOpen, setRenameOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [deleteSaving, setDeleteSaving] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
 
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -92,11 +93,13 @@ export default function VaultSelector() {
   const confirmDelete = useCallback(async () => {
     if (!currentVault) return;
     if (currentVault.existsOnIc) {
+      setDeleteSaving(true);
       const deleteOnIc = await deleteVaultFromIC(currentVault.icpPublicAddress)
       if (deleteOnIc) {
         await deleteVault(currentVault.vaultID);
         toast.success("Vault has been removed from IC");
       }
+      setDeleteSaving(false);
     } else {
       await deleteVault(currentVault.vaultID);
       toast.success("Vault deleted locally. Doesn't exists on IC")
@@ -250,10 +253,10 @@ export default function VaultSelector() {
         width="sm"
         actions={
           <>
-            <button className="gk-btn ghost" onClick={() => setDeleteOpen(false)}>
+            <button className={`gk-btn ghost ${deleteSaving ? 'saving' : ''}`} onClick={() => setDeleteOpen(false)}>
               Cancel
             </button>
-            <button className="gk-btn danger" onClick={confirmDelete}>
+            <button className={`gk-btn danger ${deleteSaving ? 'saving' : ''}`} onClick={confirmDelete}>
               Delete
             </button>
           </>
