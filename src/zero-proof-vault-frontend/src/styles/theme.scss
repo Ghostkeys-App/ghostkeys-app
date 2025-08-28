@@ -1631,6 +1631,10 @@ input, button {
 .gk-btn.danger {
   background: rgba(220, 38, 38, 1);
 }
+.gk-btn.saving {
+  pointer-events: none;
+  opacity: .3;
+}
 
 /* Form */
 .gk-form { display: grid; gap: 12px; }
