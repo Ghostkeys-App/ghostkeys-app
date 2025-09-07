@@ -1,0 +1,12 @@
+[
+  {
+    "match": "**/*",
+    "headers": {
+      // Minimal & safe for a general-embed V1
+      "Content-Security-Policy": "default-src 'none'; script-src 'self' 'strict-dynamic'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src https://ic0.app https://*.icp0.io https://api.ghostkeys.app; frame-ancestors https:;",
+      "Permissions-Policy": "camera=(), microphone=(), geolocation=(), clipboard-read=(), clipboard-write=(self)",
+      "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+      "Referrer-Policy": "no-referrer"
+    }
+  }
+]
