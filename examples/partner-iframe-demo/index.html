@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>GhostKeys Partner IFrame — Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial; margin: 0; padding: 24px; }
+      .row { display: flex; gap: 24px; align-items: flex-start; }
+      .col { flex: 1; min-width: 320px; }
+      #log { background: #0a0a0a; color: #eee; padding: 12px; border-radius: 8px; height: 260px; overflow: auto; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      iframe { width: 100%; height: 220px; border: 1px solid #e5e5e5; border-radius: 8px; }
+      button { padding: 10px 14px; border-radius: 10px; border: 0; background: #111827; color: #fff; cursor: pointer; }
+      button:disabled { opacity: .5; cursor: default; }
+      input { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; }
+      label { font-size: 12px; opacity: .7; display: block; margin-bottom: 6px; }
+      .card { border: 1px solid #e5e5e5; border-radius: 12px; padding: 16px; }
+    </style>
+  </head>
+  <body>
+    <h1>GhostKeys Partner IFrame — Demo</h1>
+    <p>This page simulates a partner app embedding the GhostKeys iframe and calling the SDK.</p>
+
+    <div class="row">
+      <div class="col card">
+        <label>IFRAME_ORIGIN (prod or local canister)</label>
+        <input id="origin" placeholder="https://iframe.ghostkeys.app" />
+        <div style="height: 12px"></div>
+        <button id="btnMount">Mount IFrame</button>
+        <div style="height: 12px"></div>
+        <iframe id="gkFrame" title="GhostKeys IFrame" src="about:blank"></iframe>
+        <div style="height: 12px"></div>
+        <button id="btnInit" disabled>Init Provider</button>
+        <button id="btnSignIn" disabled>Sign in with GhostKeys</button>
+      </div>
+
+      <div class="col card">
+        <h3 style="margin-top:0">Result</h3>
+        <div><b>Principal:</b> <span id="principal">—</span></div>
+        <div style="height: 6px"></div>
+        <div id="proofBlock" style="display:none">
+          <b>Proof:</b>
+          <pre id="proof" style="white-space:pre-wrap"></pre>
+        </div>
+        <div style="height: 12px"></div>
+        <h3>Log</h3>
+        <div id="log"></div>
+      </div>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

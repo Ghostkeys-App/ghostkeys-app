@@ -1,34 +1,75 @@
-type RpcMsg = { id?: string; method?: string; apiVersion?: string; origin?: string; params?: any };
-
 const API_VERSION = "gk-embed/v1";
 let parentOrigin: string | null = null;
 
-function post(target: Window, origin: string, payload: any) {
-  target.postMessage({ ...payload, apiVersion: API_VERSION }, origin);
+function getIdpBase(): string {
+    try {
+        // const isLocal = process.env.DFX_NETWORK == "local";
+            // (typeof import.meta !== "undefined" && (import.meta as any)?.env?.DFX_NETWORK === "local") ||
+            // (typeof window !== "undefined" && (window.location.hostname.endsWith(".localhost") || window.location.hostname === "localhost"));
+
+        // if (isLocal) {
+        if (true) {
+            const id = 'ulvla-h7777-77774-qaacq-cai';
+            // const id = (typeof import.meta !== "undefined" && (import.meta as any)?.env?.CANISTER_ID_ZERO_PROOF_VAULT_FRONTEND) || "";
+            if (id) return `http://${id}.localhost:4943`;
+            return `http://127.0.0.1:4943`;
+        }
+    } catch { /* ignore */ }
+    return `https://ghostkeys.app`;
+}
+
+function post(result: any, ev: MessageEvent, id?: string, error?: any) {
+    const payload: any = { apiVersion: API_VERSION };
+    if (id) payload.id = id;
+    if (error) payload.error = error;
+    else payload.result = result;
+    window.parent.postMessage(payload, ev.origin);
 }
 
 export function initBridge() {
-  window.addEventListener("message", async (ev: MessageEvent) => {
-    const msg = ev.data as RpcMsg;
-    if (!msg || msg.apiVersion !== API_VERSION) return;
+    window.addEventListener("message", async (ev: MessageEvent) => {
+        const msg = ev.data || {};
+        if (msg.apiVersion !== API_VERSION) return;
 
-    // accept first hello from any origin, then lock to it
-    if (msg.method === "gk_hello") {
-      parentOrigin = ev.origin;
-      post(window.parent, ev.origin, { method: "gk_ready" });
-      return;
-    }
+        if (msg.method === "gk_hello") {
+            parentOrigin = ev.origin; // lock to first parent
+            window.parent.postMessage({ method: "gk_ready", apiVersion: API_VERSION }, ev.origin);
+            return;
+        }
+        if (!parentOrigin || ev.origin !== parentOrigin) return;
 
-    // after hello, enforce origin
-    if (!parentOrigin || ev.origin !== parentOrigin) return;
+        if (msg.method === "gk_auth") {
+            try {
+                const partnerOrigin: string = msg.params?.partnerOrigin ?? ev.origin;
+                const idpBase: string | undefined = msg.params?.idpBase; // optional override from SDK
+                const result = await openPopupAndWaitForProof(partnerOrigin, idpBase);
+                post(result, ev, msg.id);
+            } catch (e: any) {
+                post(null, ev, msg.id, String(e?.message || e));
+            }
+        }
+    });
+}
 
-    if (msg.method === "gk_auth") {
-      const principal = "aaaaa-aa";           // replace with real principal
-      const id_token = "";                    // replace with real short-lived JWT, or maybe not
-      const expires_at = Date.now() + 5 * 60_000;
+function openPopupAndWaitForProof(partnerOrigin: string, overrideBase?: string) {
+    return new Promise<any>((resolve, reject) => {
+        const q = new URLSearchParams({ origin: partnerOrigin, v: "1" });
+        const base = overrideBase || getIdpBase();
+        const url = `${base}/idp/popup?${q.toString()}`;
 
-      post(window.parent, ev.origin, { id: msg.id, result: { principal, id_token, expires_at } });
-      return;
-    }
-  });
+        const w = window.open(url, "gk_idp", "width=420,height=640,noopener");
+        if (!w) return reject(new Error("popup blocked"));
+
+        const allowedOrigin = (() => { try { return new URL(base).origin; } catch { return null; } })();
+        const onMsg = (ev: MessageEvent) => {
+            if (allowedOrigin && ev.origin !== allowedOrigin) return;
+            const d = ev.data || {};
+            if (d.apiVersion !== API_VERSION || d.type !== "gk:idp:result") return;
+            window.removeEventListener("message", onMsg);
+            try { resolve({ principal: d.principal, proof: d.proof }); }
+            catch (e) { reject(e); }
+            try { w.close(); } catch { }
+        };
+        window.addEventListener("message", onMsg);
+    });
 }
