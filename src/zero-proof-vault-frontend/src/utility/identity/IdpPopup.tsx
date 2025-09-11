@@ -4,7 +4,7 @@ import { useIdentitySystem } from "../identity";
 import { useAPIContext } from "../api/APIContext";
 
 const API_VERSION = "gk-embed/v1";
-const IFM_ORIGIN = "http://umunu-kh777-77774-qaaca-cai.localhost:4943";
+const IFM_ORIGIN = process.env.DFX_NETWORK == "local" ? `http://${process.env.CANISTER_ID_ZERO_PROOF_VAULT_FRONTEND}.localhost:4943` : "https://iframe.ghostkeys.app";
 
 function canonicalBytes(partnerOrigin: string, ts: number, nonce: string) {
     const enc = new TextEncoder();

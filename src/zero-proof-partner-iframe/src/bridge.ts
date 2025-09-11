@@ -3,14 +3,9 @@ let parentOrigin: string | null = null;
 
 function getIdpBase(): string {
     try {
-        // const isLocal = process.env.DFX_NETWORK == "local";
-            // (typeof import.meta !== "undefined" && (import.meta as any)?.env?.DFX_NETWORK === "local") ||
-            // (typeof window !== "undefined" && (window.location.hostname.endsWith(".localhost") || window.location.hostname === "localhost"));
-
-        // if (isLocal) {
-        if (true) {
-            const id = 'ulvla-h7777-77774-qaacq-cai';
-            // const id = (typeof import.meta !== "undefined" && (import.meta as any)?.env?.CANISTER_ID_ZERO_PROOF_VAULT_FRONTEND) || "";
+        const isLocal = process.env.DFX_NETWORK == "local";
+        if (isLocal) {
+            const id = process.env.CANISTER_ID_ZERO_PROOF_VAULT_FRONTEND;
             if (id) return `http://${id}.localhost:4943`;
             return `http://127.0.0.1:4943`;
         }
@@ -57,8 +52,9 @@ function openPopupAndWaitForProof(partnerOrigin: string, overrideBase?: string) 
         const base = overrideBase || getIdpBase();
         const url = `${base}/idp/popup?${q.toString()}`;
 
-        const w = window.open(url, "gk_idp", "width=420,height=640,noopener");
-        if (!w) return reject(new Error("popup blocked"));
+        const w = window.open(url, "gk_idp", "width=420,height=640");
+        console.log('w', w);
+        // if (!w) return reject(new Error("popup blocked"));
 
         const allowedOrigin = (() => { try { return new URL(base).origin; } catch { return null; } })();
         const onMsg = (ev: MessageEvent) => {
@@ -68,7 +64,7 @@ function openPopupAndWaitForProof(partnerOrigin: string, overrideBase?: string) 
             window.removeEventListener("message", onMsg);
             try { resolve({ principal: d.principal, proof: d.proof }); }
             catch (e) { reject(e); }
-            try { w.close(); } catch { }
+            try { w?.close(); } catch { }
         };
         window.addEventListener("message", onMsg);
     });
