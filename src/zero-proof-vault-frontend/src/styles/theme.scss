@@ -2138,3 +2138,66 @@ input, button {
   stroke-width: 2.25 !important;
   fill: none !important;
 }
+
+// poup for GK OAuth styles, this actually needs more refinement
+
+.idp-popup-page {
+  position: relative;
+  min-height: 100vh;
+  width: 100vw;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.idp-card {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 40px rgba(2, 6, 23, 0.28);
+}
+
+.idp-title {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.idp-origin {
+  font-size: 12px;
+  opacity: 0.9;
+  margin-bottom: 14px;
+}
+
+.idp-origin-pill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15);
+}
+
+.idp-list { list-style: none; padding: 0; margin: 0; }
+.idp-list-item { margin-bottom: 10px; }
+
+.idp-choice {
+  width: 100%;
+  justify-content: space-between;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
+.idp-label { font-weight: 600; }
+.idp-cta { opacity: .8; font-size: 12px; }
+
+.idp-empty { opacity: .9; margin: 10px 0 2px; }
+.idp-error { color: #ff6b6b; margin-top: 12px; font-size: 13px; }
+

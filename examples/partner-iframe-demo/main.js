@@ -56,7 +56,7 @@ btnSignIn.onclick = async () => {
     log("✔ signIn() resolved");
     principalEl.textContent = res.principal;
     proofBlock.style.display = "block";
-    proofEl.textContent = JSON.stringify(res.proof, null, 2);
+    proofEl.textContent = JSON.stringify(res, null, 2);
   } catch (e) {
     log("✖ signIn error:", e?.message || e);
     console.error(e);

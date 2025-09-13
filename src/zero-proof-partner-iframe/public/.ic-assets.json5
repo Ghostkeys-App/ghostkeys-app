@@ -6,7 +6,7 @@
       "Content-Security-Policy": "default-src 'none'; base-uri 'none'; object-src 'none'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self' https://ic0.app https://*.icp0.io http://127.0.0.1:4943 http://*.localhost:4943; frame-ancestors http: https:;",
       "Permissions-Policy": "camera=(), microphone=(), geolocation=(), clipboard-read=(), clipboard-write=(self)",
       "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
-      "Referrer-Policy": "no-referrer"
+      "Referrer-Policy": "origin"
     }
   },
   {

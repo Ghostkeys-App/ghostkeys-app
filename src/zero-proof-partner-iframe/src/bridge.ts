@@ -1,6 +1,59 @@
 const API_VERSION = "gk-embed/v1";
 let parentOrigin: string | null = null;
 
+type MsgFilter = {
+    method?: string;
+    type?: string;
+    origin?: string;
+    hasId?: boolean;
+};
+
+type MsgHandler = (ev: MessageEvent, data: any) => void;
+
+const _subscribers = new Set<{ filter?: MsgFilter | ((ev: MessageEvent, data: any) => boolean), fn: MsgHandler }>();
+let _globalListenerAttached = false;
+
+function getOriginFromUrl(url: string | null | undefined) {
+    try { return url ? new URL(url).origin : null; } catch { return null; }
+}
+
+function ensureGlobalListener() {
+    if (_globalListenerAttached) return;
+    _globalListenerAttached = true;
+    window.addEventListener("message", (ev: MessageEvent) => {
+        const data = ev.data || {};
+        if (data.apiVersion !== API_VERSION) return;
+
+        for (const sub of _subscribers) {
+            try {
+                let match = true;
+                if (typeof sub.filter === "function") {
+                    match = !!sub.filter(ev, data);
+                } else if (sub.filter) {
+                    const f = sub.filter;
+                    if (f.method !== undefined && data.method !== f.method) match = false;
+                    if (f.type !== undefined && data.type !== f.type) match = false;
+                    if (f.hasId === true && !data.id) match = false;
+                    if (f.origin !== undefined && ev.origin !== f.origin) match = false;
+                }
+                if (match) sub.fn(ev, data);
+            } catch { }
+        }
+    });
+}
+
+export function subscribeMessage(filter: MsgFilter | ((ev: MessageEvent, data: any) => boolean), fn: MsgHandler) {
+    ensureGlobalListener();
+    const sub = { filter, fn } as const;
+    _subscribers.add(sub as any);
+    return () => { _subscribers.delete(sub as any); };
+}
+
+export function subscribeMessageOnce(filter: MsgFilter | ((ev: MessageEvent, data: any) => boolean), fn: MsgHandler) {
+    const off = subscribeMessage(filter, (ev, data) => { try { fn(ev, data); } finally { off(); } });
+    return off;
+}
+
 function getIdpBase(): string {
     try {
         const isLocal = process.env.DFX_NETWORK == "local";
@@ -22,26 +75,22 @@ function post(result: any, ev: MessageEvent, id?: string, error?: any) {
 }
 
 export function initBridge() {
-    window.addEventListener("message", async (ev: MessageEvent) => {
-        const msg = ev.data || {};
-        if (msg.apiVersion !== API_VERSION) return;
+    subscribeMessage({ method: "gk_hello" }, (ev) => {
+        parentOrigin = ev.origin; // lock to first parent
+        window.parent.postMessage({ method: "gk_ready", apiVersion: API_VERSION }, ev.origin);
+    });
 
-        if (msg.method === "gk_hello") {
-            parentOrigin = ev.origin; // lock to first parent
-            window.parent.postMessage({ method: "gk_ready", apiVersion: API_VERSION }, ev.origin);
-            return;
-        }
-        if (!parentOrigin || ev.origin !== parentOrigin) return;
-
-        if (msg.method === "gk_auth") {
-            try {
-                const partnerOrigin: string = msg.params?.partnerOrigin ?? ev.origin;
-                const idpBase: string | undefined = msg.params?.idpBase; // optional override from SDK
-                const result = await openPopupAndWaitForProof(partnerOrigin, idpBase);
-                post(result, ev, msg.id);
-            } catch (e: any) {
-                post(null, ev, msg.id, String(e?.message || e));
-            }
+    subscribeMessage((ev, msg) => {
+        if (!parentOrigin || ev.origin !== parentOrigin) return false;
+        return msg.method === "gk_auth";
+    }, async (ev, msg) => {
+        try {
+            const partnerOrigin: string = msg.params?.partnerOrigin ?? ev.origin;
+            const idpBase: string | undefined = msg.params?.idpBase;
+            const result = await openPopupAndWaitForProof(partnerOrigin, idpBase);
+            post(result, ev, msg.id);
+        } catch (e: any) {
+            post(null, ev, msg.id, String(e?.message || e));
         }
     });
 }
@@ -52,20 +101,17 @@ function openPopupAndWaitForProof(partnerOrigin: string, overrideBase?: string) 
         const base = overrideBase || getIdpBase();
         const url = `${base}/idp/popup?${q.toString()}`;
 
-        const w = window.open(url, "gk_idp", "width=420,height=640");
+        const w = window.open(url, "gk_idp", "width=550,height=360");
         console.log('w', w);
         // if (!w) return reject(new Error("popup blocked"));
 
-        const allowedOrigin = (() => { try { return new URL(base).origin; } catch { return null; } })();
-        const onMsg = (ev: MessageEvent) => {
-            if (allowedOrigin && ev.origin !== allowedOrigin) return;
-            const d = ev.data || {};
-            if (d.apiVersion !== API_VERSION || d.type !== "gk:idp:result") return;
-            window.removeEventListener("message", onMsg);
-            try { resolve({ principal: d.principal, proof: d.proof }); }
+        const allowedOrigin = getOriginFromUrl(base);
+        const off = subscribeMessageOnce({ type: "gk:idp:result", origin: allowedOrigin || undefined }, (_ev, d) => {
+            try { resolve({ principal: d.principal }); }
             catch (e) { reject(e); }
-            try { w?.close(); } catch { }
-        };
-        window.addEventListener("message", onMsg);
+            finally { try { w?.close(); } catch { } }
+        });
+
+        // setTimeout(() => { off(); reject(new Error("popup timeout")); try { w?.close(); } catch {} }, 5 * 60_000);
     });
 }

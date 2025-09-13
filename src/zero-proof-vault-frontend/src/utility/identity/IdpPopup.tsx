@@ -1,27 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Principal } from "@dfinity/principal";
 import { useIdentitySystem } from "../identity";
 import { useAPIContext } from "../api/APIContext";
 
 const API_VERSION = "gk-embed/v1";
-const IFM_ORIGIN = process.env.DFX_NETWORK == "local" ? `http://${process.env.CANISTER_ID_ZERO_PROOF_VAULT_FRONTEND}.localhost:4943` : "https://iframe.ghostkeys.app";
-
-function canonicalBytes(partnerOrigin: string, ts: number, nonce: string) {
-    const enc = new TextEncoder();
-    const domainBind = `gk:${partnerOrigin}:${ts}`;
-    const parts = [
-        enc.encode("GhostKeys Proof v1"),
-        new Uint8Array([0]),
-        enc.encode(domainBind),
-        new Uint8Array([0]),
-        enc.encode(nonce),
-    ];
-    const total = parts.reduce((n, a) => n + a.length, 0);
-    const out = new Uint8Array(total);
-    let off = 0;
-    for (const a of parts) { out.set(a, off); off += a.length; }
-    return { bytes: out, domainBind };
-}
+const IFM_ORIGIN = process.env.DFX_NETWORK == "local" ? `http://${process.env.CANISTER_ID_ZERO_PROOF_PARTNER_IFRAME}.localhost:4943` : "https://iframe.ghostkeys.app";
 
 export function IdpPopup() {
     const params = new URLSearchParams(window.location.search);
@@ -30,6 +12,8 @@ export function IdpPopup() {
     const { getFactoryCanisterAPI } = useAPIContext();
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const [existsMap, setExistsMap] = useState<boolean[]>([]);
+    const [checking, setChecking] = useState(true);
 
     const identities = useMemo(() => {
         return [currentProfile];
@@ -43,34 +27,44 @@ export function IdpPopup() {
         } catch { }
     }, []);
 
+    // Force dark theme for the popup to match app style
+    useEffect(() => {
+        document.body.classList.add("dark");
+        return () => { document.body.classList.remove("dark"); };
+    }, []);
+
+    // Check if user exists in the factory canister for the current identity
+    useEffect(() => {
+        let cancelled = false;
+        setChecking(true);
+        (async () => {
+            try {
+                const api = await getFactoryCanisterAPI();
+                const exists = await api.user_caller_exists();
+                if (!cancelled) setExistsMap([exists]);
+            } catch (e) {
+                if (!cancelled) setExistsMap([false]);
+            } finally {
+                if (!cancelled) setChecking(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [getFactoryCanisterAPI, currentProfile]);
+
     async function onSelectIdentity(idIndex: number) {
         setBusy(true); setError(null);
         try {
             const id = identities[idIndex];
 
             const principal = currentProfile.principal.toString();
-
-            const ts = Math.floor(Date.now() / 1000);
-            const nonce = crypto.randomUUID();
-            const { bytes, domainBind } = canonicalBytes(partnerOrigin, ts, nonce);
-
-            const sig = await currentProfile.identity.sign(bytes.buffer);
-
-            window.opener?.postMessage({
+            const msg = {
                 type: "gk:idp:result",
                 apiVersion: API_VERSION,
                 principal,
-                proof: {
-                    algo: "ed25519",
-                    sig_b64: b64(sig),
-                    ts,
-                    nonce,
-                    domain_bind: domainBind,
-                    message_b64: b64(bytes),
-                }
-            }, IFM_ORIGIN);
+            };
+            window.opener?.postMessage(msg, IFM_ORIGIN);
 
-            window.close();
+            // window.close();
         } catch (e: any) {
             setBusy(false);
             setError(String(e?.message || e));
@@ -82,40 +76,50 @@ export function IdpPopup() {
         return <Center>Invalid request (missing partner origin)</Center>;
     }
     return (
-        <div style={{ fontFamily: "Inter,system-ui", padding: 16, width: 360 }}>
-            <h3 style={{ margin: "0 0 8px" }}>Sign in with GhostKeys</h3>
-            <div style={{ fontSize: 12, opacity: .75, marginBottom: 12 }}>
-                Request from <code>{partnerOrigin}</code>
-            </div>
+        <div className="idp-popup-page">
+            <div className="main-bg" />
+            <div className="idp-card">
+                <h3 className="idp-title">Sign in with GhostKeys</h3>
+                <div className="idp-origin">Request from <span className="idp-origin-pill">{partnerOrigin}</span></div>
 
-            {/* Identity list */}
-            {identities.length > 0 ? (
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                    {identities.map((id: any, idx: number) => (
-                        <li key={idx} style={{ marginBottom: 8 }}>
-                            <button disabled={busy} onClick={() => onSelectIdentity(idx)}>
-                                Use {id.label || `Identity #${idx + 1}`}
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            ) : (
-                <div style={{ marginBottom: 12 }}>
-                    No identities found on this device.
-                    {/* You can link to your existing import/create flow here */}
-                </div>
-            )}
-            {error && <div style={{ color: "crimson", marginTop: 8 }}>{error}</div>}
+                {identities.length > 0 ? (
+                    <ul className="idp-list">
+                        {identities.map((id: any, idx: number) => {
+                            const exists = existsMap[idx];
+                            const label = exists === undefined && checking
+                                ? "Checking identity…"
+                                : exists
+                                    ? shortenSeed(currentProfile.seedPhrase)
+                                    : `Use new identity to sign-in with - ${shortenSeed(currentProfile.seedPhrase)}`;
+                            return (
+                                <li key={idx} className="idp-list-item">
+                                    <button
+                                        className="gk-btn idp-choice"
+                                        disabled={busy || checking}
+                                        onClick={() => onSelectIdentity(idx)}
+                                    >
+                                        <span className="idp-label">{label}</span>
+                                        <span className="idp-cta">{busy ? "Working…" : "Select"}</span>
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                ) : (
+                    <div className="idp-empty">No identities found on this device.</div>
+                )}
+
+                {error && <div className="idp-error">{error}</div>}
+            </div>
         </div>
     );
 }
 
-function b64(arr: ArrayBuffer | Uint8Array) {
-    const u8 = arr instanceof Uint8Array ? arr : new Uint8Array(arr);
-    let bin = ""; for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
-    return btoa(bin);
-}
-
 function Center({ children }: { children: any }) {
     return <div style={{ display: "grid", placeItems: "center", height: "100vh" }}>{children}</div>;
+}
+
+function shortenSeed(seed: string) {
+    if (!seed || seed.length <= 8) return seed;
+    return `${seed.slice(0, 4)}...${seed.slice(-4)}`;
 }
