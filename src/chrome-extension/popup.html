@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GhostKeys</title>
+    <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+<div class="wrap">
+    <h1>GhostKeys</h1>
+    
+    
+    <section class="card">
+        <h2>1) Import seed (mock)</h2>
+        <textarea id="seed" placeholder="Enter seed phrase…" rows="3"></textarea>
+        <div class="row">
+            <button id="import">Import &amp; Fetch (mock)</button>
+            <button id="clear" class="ghost">Clear all</button>
+        </div>
+        <div id="seedStatus" class="muted"></div>
+    </section>
+    
+    
+    <section class="card">
+        <h2>2) Select a vault</h2>
+        <div id="vaults"></div>
+        <div class="row"><button id="useVault" disabled>Use this vault</button></div>
+        <div id="vaultStatus" class="muted"></div>
+    </section>
+    
+    
+    <section class="card">
+        <h2>3) Test</h2>
+        <p class="muted">Open a login page (Google, GitHub, AWS, Dropbox, Facebook, X) and watch autofill.</p>
+    </section>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

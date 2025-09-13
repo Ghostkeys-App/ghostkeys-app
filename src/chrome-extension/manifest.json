@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "GhostKeys Autofill (Starter)",
+  "version": "0.1.0",
+  "description": "Seed import (mock), vault fetch (mock), vault select, and autofill across popular sites.",
+  "permissions": ["storage", "tabs", "scripting", "activeTab"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ]
+}
