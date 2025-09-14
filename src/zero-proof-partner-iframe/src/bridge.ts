@@ -101,17 +101,53 @@ function openPopupAndWaitForProof(partnerOrigin: string, overrideBase?: string) 
         const base = overrideBase || getIdpBase();
         const url = `${base}/idp/popup?${q.toString()}`;
 
-        const w = window.open(url, "gk_idp", "width=550,height=360");
-        console.log('w', w);
+        // Compute responsive popup size (desktop only)
+        const vw = Math.max(window.innerWidth || 0, 800);
+        const vh = Math.max(window.innerHeight || 0, 600);
+        const width = Math.max(520, Math.min(900, Math.floor(vw * 0.38)));
+        const height = Math.max(420, Math.min(820, Math.floor(vh * 0.62)));
+
+        // Center the popup on the current screen
+        const dualScreenLeft = window.screenLeft !== undefined ? window.screenLeft : (window as any).screenX || 0;
+        const dualScreenTop = window.screenTop !== undefined ? window.screenTop : (window as any).screenY || 0;
+        const outerW = window.outerWidth || vw;
+        const outerH = window.outerHeight || vh;
+        const left = Math.max(0, dualScreenLeft + Math.floor((outerW - width) / 2));
+        const top = Math.max(0, dualScreenTop + Math.floor((outerH - height) / 2));
+
+        const features = [
+            `width=${width}`,
+            `height=${height}`,
+            `left=${left}`,
+            `top=${top}`,
+            "toolbar=no",
+            "location=no",
+            "status=no",
+            "menubar=no",
+            "scrollbars=yes",
+            "resizable=yes",
+        ].join(",");
+
+        const w = window.open(url, "gk_idp", features);
         // if (!w) return reject(new Error("popup blocked"));
 
         const allowedOrigin = getOriginFromUrl(base);
-        const off = subscribeMessageOnce({ type: "gk:idp:result", origin: allowedOrigin || undefined }, (_ev, d) => {
-            try { resolve({ principal: d.principal }); }
-            catch (e) { reject(e); }
+        const off = subscribeMessageOnce((ev, d) => {
+            if (allowedOrigin && ev.origin !== allowedOrigin) return false;
+            return d && (d.type === "gk:idp:result" || d.type === "gk:idp:cancel");
+        }, (_ev, d) => {
+            try {
+                if (d.type === "gk:idp:result") {
+                    resolve({ principal: d.principal });
+                } else {
+                    // User canceled
+                    reject(new Error("User canceled"));
+                }
+            } catch (e) { reject(e); }
             finally { try { w?.close(); } catch { } }
         });
 
+        // Optional timeout if desired in the future
         // setTimeout(() => { off(); reject(new Error("popup timeout")); try { w?.close(); } catch {} }, 5 * 60_000);
     });
 }

@@ -14,6 +14,7 @@ export function IdpPopup() {
     const [busy, setBusy] = useState(false);
     const [existsMap, setExistsMap] = useState<boolean[]>([]);
     const [checking, setChecking] = useState(true);
+    const [selectedIndex, setSelectedIndex] = useState(0);
 
     const identities = useMemo(() => {
         return [currentProfile];
@@ -71,40 +72,64 @@ export function IdpPopup() {
         }
     }
 
+    function onCancel() {
+        try {
+            const msg = { type: "gk:idp:cancel", apiVersion: API_VERSION };
+            window.opener?.postMessage(msg, IFM_ORIGIN);
+        } finally {
+            try { window.close(); } catch { /* ignore */ }
+        }
+    }
+
     // Render
     if (!partnerOrigin) {
         return <Center>Invalid request (missing partner origin)</Center>;
     }
+    const domain = getDomain(partnerOrigin) || partnerOrigin;
     return (
         <div className="idp-popup-page">
             <div className="main-bg" />
             <div className="idp-card">
-                <h3 className="idp-title">Sign in with GhostKeys</h3>
-                <div className="idp-origin">Request from <span className="idp-origin-pill">{partnerOrigin}</span></div>
+                <h3 className="idp-title">Sign-in with Ghostkeys to {domain}</h3>
+                <div className="idp-subtitle">Select Identity</div>
 
                 {identities.length > 0 ? (
-                    <ul className="idp-list">
-                        {identities.map((id: any, idx: number) => {
-                            const exists = existsMap[idx];
-                            const label = exists === undefined && checking
-                                ? "Checking identity…"
-                                : exists
-                                    ? shortenSeed(currentProfile.seedPhrase)
-                                    : `Use new identity to sign-in with - ${shortenSeed(currentProfile.seedPhrase)}`;
-                            return (
-                                <li key={idx} className="idp-list-item">
-                                    <button
-                                        className="gk-btn idp-choice"
-                                        disabled={busy || checking}
-                                        onClick={() => onSelectIdentity(idx)}
-                                    >
-                                        <span className="idp-label">{label}</span>
-                                        <span className="idp-cta">{busy ? "Working…" : "Select"}</span>
-                                    </button>
-                                </li>
-                            );
-                        })}
-                    </ul>
+                    <>
+                        {identities.length === 1 ? (
+                            <div className="idp-identity-box">
+                                {existsMap[0] === false && !checking && (
+                                    <div className="idp-note">No active sessions, sign in with new identity:</div>
+                                )}
+                                <div className="idp-seed">{checking ? "Checking identity…" : shortenSeed(currentProfile.seedPhrase)}</div>
+                            </div>
+                        ) : (
+                            <ul className="idp-list">
+                                {identities.map((_id: any, idx: number) => {
+                                    const exists = existsMap[idx];
+                                    const isSelected = selectedIndex === idx;
+                                    return (
+                                        <li key={idx} className="idp-list-item">
+                                            <button
+                                                className={`gk-btn idp-choice ${isSelected ? 'selected' : ''}`}
+                                                disabled={busy || checking}
+                                                onClick={() => setSelectedIndex(idx)}
+                                            >
+                                                <span className="idp-label">{checking && exists === undefined ? 'Checking…' : shortenSeed(currentProfile.seedPhrase)}</span>
+                                                <span className="idp-cta">{isSelected ? 'Selected' : 'Select'}</span>
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
+
+                        <div className="idp-actions">
+                            <button className="gk-btn ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+                            <button className="gk-btn primary" onClick={() => onSelectIdentity(selectedIndex)} disabled={busy || checking}>
+                                {busy ? 'Signing in…' : 'Sign in'}
+                            </button>
+                        </div>
+                    </>
                 ) : (
                     <div className="idp-empty">No identities found on this device.</div>
                 )}
@@ -120,6 +145,10 @@ function Center({ children }: { children: any }) {
 }
 
 function shortenSeed(seed: string) {
-    if (!seed || seed.length <= 8) return seed;
-    return `${seed.slice(0, 4)}...${seed.slice(-4)}`;
+    if (!seed || seed.length <= 12) return seed;
+    return `${seed.slice(0, 6)}…${seed.slice(-6)}`;
+}
+
+function getDomain(origin: string) {
+    try { return new URL(origin).hostname; } catch { return null; }
 }

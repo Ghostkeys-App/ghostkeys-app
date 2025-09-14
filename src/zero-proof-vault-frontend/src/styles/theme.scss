@@ -2151,7 +2151,7 @@ input, button {
 }
 
 .idp-card {
-  width: 420px;
+  width: clamp(380px, 38vw, 560px);
   max-width: calc(100vw - 32px);
   padding: 18px 18px 16px;
   border-radius: 16px;
@@ -2164,9 +2164,15 @@ input, button {
 }
 
 .idp-title {
-  margin: 0 0 8px 0;
-  font-size: 18px;
+  margin: 0 0 6px 0;
+  font-size: clamp(18px, 1.2vw + 14px, 24px);
   font-weight: 700;
+}
+
+.idp-subtitle {
+  font-size: 13px;
+  opacity: .9;
+  margin: 0 0 12px 0;
 }
 
 .idp-origin {
@@ -2201,3 +2207,21 @@ input, button {
 .idp-empty { opacity: .9; margin: 10px 0 2px; }
 .idp-error { color: #ff6b6b; margin-top: 12px; font-size: 13px; }
 
+/* Identity single selection layout */
+.idp-identity-box {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.idp-note { font-size: 13px; opacity: .9; }
+.idp-seed { font-weight: 600; letter-spacing: .2px; }
+
+.idp-actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
