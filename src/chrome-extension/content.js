@@ -17,6 +17,7 @@ let mo = null; // MutationObserver ref
 let anchorEl = null;
 let repositionHandlersBound = false;
 let miniRoot = null;          // inline key button overlay
+let saveBarRoot = null;
 
 init().catch(console.error);
 
@@ -26,22 +27,31 @@ async function init() {
     const { ok, creds } = await sendMsg('gk-get-creds-for-host', { host, href: location.href });
     if (!ok) return;
     credsCache = creds || [];
-    if (!credsCache.length) return; // nothing to do
+
+    // Note: even with no creds, we still capture submits so we can suggest saving.
+    // (We just won't show the mini key chooser.)
 
     // ⬇️ ONLY show chooser on focus now
     attachFocusHandlers();
 
     // NEW: catch initial auto-focused field (and late autofocus shortly after)
     ensureInitialFocusTrigger();
+
+    attachSaveCaptureHandlers();        // capture submits/Enter and stage a candidate
+    checkPendingSaveSuggestion();       // show “Save to GhostKeys?” on load if a candidate exists
 }
 
 function ensureInitialFocusTrigger() {
+    const hasCreds = !!(credsCache && credsCache.length);
+
     // Try immediately…
     const first = getDeepActiveElement();
     if (first && (isUserField(first) || isPassField(first)) && isVisibleEnabled(first)) {
-        anchorEl = first;
-        showMiniTrigger(first);
-        return;
+        if (hasCreds) {
+            anchorEl = first;
+            showMiniTrigger(first);
+            return;
+        }
     }
 
     // …and then poll briefly to catch late autofocus/hydration
@@ -53,8 +63,10 @@ function ensureInitialFocusTrigger() {
         const el = getDeepActiveElement();
         if (el && (isUserField(el) || isPassField(el)) && isVisibleEnabled(el)) {
             clearInterval(timer);
-            anchorEl = el;
-            showMiniTrigger(el);
+            if (hasCreds) {
+                anchorEl = el;
+                showMiniTrigger(el);
+            }
         } else if (Date.now() > deadline) {
             clearInterval(timer);
         }
@@ -64,8 +76,10 @@ function ensureInitialFocusTrigger() {
     window.addEventListener('pageshow', () => {
         const el2 = getDeepActiveElement();
         if (el2 && (isUserField(el2) || isPassField(el2)) && isVisibleEnabled(el2)) {
-            anchorEl = el2;
-            showMiniTrigger(el2);
+            if (hasCreds) {
+                anchorEl = el2;
+                showMiniTrigger(el2);
+            }
         }
     }, { once: true });
 }
@@ -272,6 +286,7 @@ function isVisibleEnabled(el) {
 
 // —— Small chooser overlay (Shadow DOM to avoid CSS collisions) ——
 function showChooser(creds, onPick, { anchor } = {}) {
+    if (!Array.isArray(creds) || creds.length === 0) return;
     destroyChooser();
 
     const host = document.createElement('div');
@@ -504,6 +519,9 @@ function showMiniTrigger(anchor) {
     btn.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
+
+        if (!credsCache || credsCache.length === 0) return;
+
         showChooser(credsCache, (chosen) => {
             if (!chosen) return;
             const scope = anchorEl?.form || anchorEl?.closest('form') || document;
@@ -556,4 +574,144 @@ function bindMiniDismissHandlers() {
     document.addEventListener('mousedown', onDocClick, true);
     document.addEventListener('touchstart', onDocClick, true);
     document.addEventListener('keydown', onKey, true);
+}
+
+function attachSaveCaptureHandlers() {
+    // Capture native form submits early
+    document.addEventListener('submit', (e) => {
+        tryStageCandidateFromScope(e.target);
+    }, true);
+
+    // Fallback: Enter pressed in a password input (many sites login via JS)
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const t = e.target;
+        if (!(t instanceof Element)) return;
+        if (!isPassField(t)) return;
+        const scope = t.form || t.closest('form') || document;
+        tryStageCandidateFromScope(scope);
+    }, true);
+}
+
+function tryStageCandidateFromScope(scope) {
+    const user = findAnyUsernameInput(scope || document);
+    const pass = findPasswordInput(scope || document);
+    const username = getInputValue(user);
+    const password = getInputValue(pass);
+    if (!username || !password) return;
+
+    // Avoid staging if this exact domain+username already exists in cache
+    const exists = !!(credsCache || []).find(c =>
+        (c.domain||'').toLowerCase() === location.hostname.toLowerCase() &&
+        (c.username||'').toLowerCase() === username.toLowerCase()
+    );
+    if (exists) return;
+
+    sendMsg('gk-propose-save', {
+        domain: location.hostname,
+        username,
+        password
+    });
+}
+
+function getInputValue(el) {
+    if (!el) return '';
+    return el.isContentEditable ? (el.textContent || '').trim()
+        : (el.value || '').trim();
+}
+
+async function checkPendingSaveSuggestion() {
+    const res = await sendMsg('gk-get-pending-candidate');
+    const cand = res?.cand;
+    if (!cand) return;
+
+    // Only show if it’s for this site or we arrived from that site (redirect case)
+    const sameHost = (location.hostname || '').toLowerCase() === (cand.domain || '').toLowerCase();
+    const fromHost = document.referrer && document.referrer.toLowerCase().includes((cand.domain || '').toLowerCase());
+    if (!sameHost && !fromHost) {
+        // Not the right context — clear to avoid odd prompts elsewhere
+        await sendMsg('gk-clear-pending');
+        return;
+    }
+
+    // If creds now exist (e.g., user already saved), skip
+    const dup = !!(credsCache || []).find(c =>
+        (c.domain||'').toLowerCase() === (cand.domain||'').toLowerCase() &&
+        (c.username||'').toLowerCase() === (cand.username||'').toLowerCase()
+    );
+    if (dup) {
+        await sendMsg('gk-clear-pending');
+        return;
+    }
+
+    showSaveBar(cand);
+}
+
+function showSaveBar(cand) {
+    destroySaveBar();
+
+    const host = document.createElement('div');
+    host.style.position = 'fixed';
+    host.style.right = '12px';
+    host.style.top = '12px';
+    host.style.zIndex = '2147483647';
+
+    const shadow = host.attachShadow({ mode: 'open' });
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+    <style>
+      .bar {
+        font: 13px/1.45 system-ui,-apple-system, Segoe UI, Roboto, sans-serif;
+        background:#0f172a; color:#e5e7eb; border:1px solid #334155;
+        border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.35);
+        padding:10px; min-width:260px; max-width:340px;
+      }
+      .row { display:flex; gap:8px; align-items:center; justify-content:space-between; }
+      .txt { margin-right:8px; }
+      .dom { opacity:.75; }
+      .btn { background:#2563eb; color:#fff; border:none; border-radius:8px; padding:6px 10px; cursor:pointer; font-weight:700; }
+      .ghost { background:#111827; color:#cbd5e1; margin-right:6px; }
+    </style>
+    <div class="bar">
+      <div class="row">
+        <div class="txt">
+          Save credentials for <span class="dom">${escapeHtml(cand.domain)}</span>?
+          <div style="opacity:.8;font-size:12px;margin-top:2px;">${escapeHtml(cand.username)}</div>
+        </div>
+        <div>
+          <button class="btn ghost" id="dismiss">Not now</button>
+          <button class="btn" id="save">Save</button>
+        </div>
+      </div>
+    </div>
+  `;
+    shadow.appendChild(wrap);
+    document.documentElement.appendChild(host);
+    saveBarRoot = host;
+
+    shadow.getElementById('save').addEventListener('click', async () => {
+        const res = await sendMsg('gk-add-credential', {
+            domain: cand.domain, username: cand.username, password: cand.password
+        });
+        await sendMsg('gk-clear-pending');
+
+        if (res?.ok) {
+            // update in-memory cache so chooser works immediately
+            credsCache = Array.isArray(credsCache) ? credsCache : [];
+            if (!credsCache.some(c => c.domain === cand.domain && c.username === cand.username)) {
+                credsCache.push({ domain: cand.domain, username: cand.username, password: cand.password });
+            }
+        }
+        destroySaveBar();
+    });
+
+    shadow.getElementById('dismiss').addEventListener('click', async () => {
+        await sendMsg('gk-clear-pending');
+        destroySaveBar();
+    });
+}
+
+function destroySaveBar() {
+    if (saveBarRoot && saveBarRoot.isConnected) saveBarRoot.remove();
+    saveBarRoot = null;
 }

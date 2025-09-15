@@ -20,8 +20,8 @@ async function mockFetchVaultsFromSeed(seedPhrase) {
             name: 'Personal',
             entries: [
                 { domain: 'accounts.google.com', username: 'nick.personal@gmail.com', password: 'DemoPass-1' },
-                { domain: 'github.com', username: 'nick-personal', password: 'DemoPass-2' },
-                { domain: 'github.com', username: 'nick-personal2', password: 'DemoPass-22' },
+                // { domain: 'github.com', username: 'nick-personal', password: 'DemoPass-2' },
+                // { domain: 'github.com', username: 'nick-personal2', password: 'DemoPass-22' },
                 { domain: 'signin.aws.amazon.com', username: 'nick.personal', password: 'DemoPass-3' },
                 { domain: 'kissmyacid.art', username: 'nick.personal', password: 'DemoPass-3' },
                 { domain: 'kissmyacid.art', username: 'nick.personal2', password: 'DemoPass-32' },
@@ -35,7 +35,7 @@ async function mockFetchVaultsFromSeed(seedPhrase) {
             name: 'Work',
             entries: [
                 { domain: 'accounts.google.com', username: 'nick@company.com', password: 'WorkPass-1' },
-                { domain: 'github.com', username: 'nick-company', password: 'WorkPass-2' },
+                // { domain: 'github.com', username: 'nick-company', password: 'WorkPass-2' },
                 { domain: 'signin.aws.amazon.com', username: 'nick.company', password: 'WorkPass-3' },
                 { domain: 'dropbox.com', username: 'nick.company@org', password: 'WorkPass-4' }
             ]
@@ -113,6 +113,56 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 }
                 case 'gk-ping': {
                     sendResponse({ ok: true, now: Date.now() });
+                    break;
+                }
+                case 'gk-propose-save': {
+                    const { domain, username, password } = msg;
+                    const ts = Date.now();
+                    const store = chrome.storage.session ?? chrome.storage.local; // session if available
+                    await store.set({ gk_pending_candidate: { domain, username, password, ts } });
+                    sendResponse({ ok: true });
+                    break;
+                }
+
+                case 'gk-get-pending-candidate': {
+                    const store = chrome.storage.session ?? chrome.storage.local;
+                    const { gk_pending_candidate: cand = null } = await store.get('gk_pending_candidate');
+                    const fresh = cand && (Date.now() - (cand.ts || 0) < 5 * 60 * 1000) ? cand : null; // 5-min TTL
+                    sendResponse({ ok: true, cand: fresh });
+                    break;
+                }
+
+                case 'gk-clear-pending': {
+                    const store = chrome.storage.session ?? chrome.storage.local;
+                    await store.remove('gk_pending_candidate');
+                    sendResponse({ ok: true });
+                    break;
+                }
+
+                case 'gk-add-credential': {
+                    const { domain, username, password } = msg;
+                    if (!domain || !username || !password) {
+                        sendResponse({ ok: false, error: 'Missing domain/username/password' });
+                        break;
+                    }
+                    const { gk_vaults: vaults = [], gk_selected_vault_id: id = null } =
+                        await chrome.storage.local.get(['gk_vaults','gk_selected_vault_id']);
+                    if (!id) { sendResponse({ ok:false, error:'No vault selected' }); break; }
+                    const i = vaults.findIndex(v => v.id === id);
+                    if (i < 0) { sendResponse({ ok:false, error:'Selected vault not found' }); break; }
+
+                    const v = vaults[i];
+                    v.entries = Array.isArray(v.entries) ? v.entries : [];
+                    const dup = v.entries.find(e =>
+                        (e.domain||'').toLowerCase() === domain.toLowerCase() &&
+                        (e.username||'').toLowerCase() === username.toLowerCase()
+                    );
+                    if (!dup) {
+                        v.entries.push({ domain, username, password });
+                        vaults[i] = v;
+                        await chrome.storage.local.set({ gk_vaults: vaults });
+                    }
+                    sendResponse({ ok: true, added: !dup, entry: { domain, username } });
                     break;
                 }
                 default:
