@@ -2225,3 +2225,53 @@ input, button {
   gap: 8px;
   justify-content: flex-end;
 }
+
+.gk-popover-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: transparent; /* click-capture only */
+}
+.gk-popover {
+  position: fixed;
+  color: #fff;
+  border-radius: 16px;
+  padding: 10px;
+  /* Match GhostKeys cinematic glass look */
+  background: linear-gradient(180deg, rgba(26,35,84,.85), rgba(12,18,50,.9));
+  box-shadow: 0 24px 80px rgba(2,6,23,.55), inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.gk-menu {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 320px;
+}
+.gk-menu-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  border-radius: 10px;
+}
+.gk-menu-avatar { width: 26px; border-radius: 50%; opacity: .9; }
+.gk-menu-id-text { font-size: .9rem; opacity: .9; }
+.gk-menu-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,0.06); color: #fff;
+  border-radius: 10px; cursor: pointer; text-align: left;
+}
+.gk-menu-item:hover { background: rgba(255,255,255,0.1); }
+.gk-menu-item.is-disabled, .gk-menu-item:disabled { opacity: .5; cursor: default; }
+.gk-menu-chevron { margin-left: auto; opacity: .6; }
+.gk-menu-separator { height: 1px; background: rgba(255,255,255,.12); margin: 6px 4px; }
+.gk-submenu { position: absolute; left: calc(100% + 8px); top: 0; min-width: 260px; display: flex; flex-direction: column; gap: 6px; background: linear-gradient(180deg, rgba(26,35,84,.92), rgba(12,18,50,.95)); border: 1px solid rgba(255,255,255,.1); box-shadow: 0 20px 50px rgba(2,6,23,.5); border-radius: 12px; padding: 8px; z-index: 2; }
+.gk-submenu-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; background: rgba(255,255,255,0.06); color: #fff; }
+.gk-submenu-item:hover { background: rgba(255,255,255,0.08); }
+.gk-submenu-item.active { opacity: .6; }
+.gk-submenu-badge { font-size: .75rem; opacity: .8; }
+.gk-submenu-label { font-size: .9rem; }

@@ -4,6 +4,8 @@ import { useIdentitySystem } from "../../utility/identity";
 import VaultSelector from "../vault-selector/VaultSelector.tsx";
 import { useVaultProviderActions, useVaultProviderState } from "../../utility/vault-provider";
 import ProfileModal from "../modals/profile-modal/ProfileModal.tsx";
+import ProfileMenu from "../profile-menu/ProfileMenu.tsx";
+import { Sparkles, Settings as SettingsIcon, UserPlus } from "lucide-react";
 import { toast } from "../../utility/toast";
 import { english } from "viem/accounts";
 import GKModal from "../modals/gk-modal/GKModal.tsx";
@@ -52,9 +54,11 @@ export default function TemplateSidebar({
   selected,
   onSelect,
 }: TemplateSidebarProps) {
-  const { currentProfile } = useIdentitySystem();
+  const { currentProfile, profiles } = useIdentitySystem();
   const { validateAndImportIdentityWithVaultFromSeed } = useVaultProviderActions();
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileAnchorRef = React.useRef<HTMLDivElement>(null);
   const [confirmReloadOpen, setConfirmReloadOpen] = useState(false);
   const [canReload, setCanReload] = useState(false);
 
@@ -66,7 +70,7 @@ export default function TemplateSidebar({
   }, [currentVault]);
 
   const openProfile = () => {
-    setShowProfileModal(true);
+    setShowProfileMenu(true);
   };
 
   const doReload = useCallback(async () => {
@@ -186,6 +190,7 @@ export default function TemplateSidebar({
           tabIndex={0}
           aria-label="Open profile settings"
           onClick={openProfile}
+          ref={profileAnchorRef}
           onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openProfile()}
           data-tip="Profile & Settings"
         >
@@ -207,6 +212,19 @@ export default function TemplateSidebar({
         open={showProfileModal}
         onClose={() => setShowProfileModal(false)}
         onImport={handleImport}
+      />
+      <ProfileMenu
+        open={showProfileMenu}
+        anchorEl={profileAnchorRef.current}
+        onClose={() => setShowProfileMenu(false)}
+        beforeItems={[
+          { icon: <Sparkles size={16} />, label: 'Upgrade to Pro (coming soon)', disabled: true },
+          { icon: <SettingsIcon size={16} />, label: 'Settings', onClick: () => { setShowProfileMenu(false); toast.info('Settings coming soon'); } },
+        ]}
+        afterItems={[
+          { icon: <UserPlus size={16} />, label: 'Add Profile', onClick: () => { setShowProfileMenu(false); setShowProfileModal(true); } },
+          { label: 'Switch Profile', hasSubmenu: true, disabled: (profiles?.length ?? 1) <= 1 }
+        ]}
       />
       <GKModal
         open={confirmReloadOpen}
