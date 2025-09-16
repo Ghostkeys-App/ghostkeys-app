@@ -1,97 +1,176 @@
-// content.js — lean observer (observes less + throttles smarter)
-// - Debounce: 500ms
-// - Only reacts to auth-relevant DOM changes (forms/inputs/attrs)
-// - No dismissal / no extra guards
+// content.js — autofill surface + save/update suggestion UI
+// - Shows mini key button on focused auth fields when creds exist
+// - Offers "Save credentials" after successful login/redirect
+// - Offers "Update password" when same username has a different password
+
+'use strict';
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Constants & state
+ * ──────────────────────────────────────────────────────────────────────────── */
 
 const GK = {
     ATTRS: {
         filled: 'data-gk-filled',
-        overlayHost: 'data-gk-overlay-host'
-    }
+        overlayHost: 'data-gk-overlay-host',
+    },
 };
 
-let lastTriedHost = null;
-let credsCache = null;
-let overlayRoot = null;
-let mo = null; // MutationObserver ref
-let anchorEl = null;
-let repositionHandlersBound = false;
-let miniRoot = null;          // inline key button overlay
-let saveBarRoot = null;
+let credsCache = null;                 // last fetched creds for current host
+let overlayRoot = null;                // chooser overlay host
+let anchorEl = null;                   // focused input anchoring mini button / chooser
+let repositionHandlersBound = false;   // guards scroll/resize attachment
+let miniRoot = null;                   // inline key button host
+let saveBarRoot = null;                // save/update suggestion bar host
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Boot
+ * ──────────────────────────────────────────────────────────────────────────── */
 
 init().catch(console.error);
 
 async function init() {
     const host = location.host;
-    lastTriedHost = host;
     const { ok, creds } = await sendMsg('gk-get-creds-for-host', { host, href: location.href });
     if (!ok) return;
     credsCache = creds || [];
 
-    // Note: even with no creds, we still capture submits so we can suggest saving.
-    // (We just won't show the mini key chooser.)
-
-    // ⬇️ ONLY show chooser on focus now
+    // Show chooser on focus (only) + catch initial autofocus/hydration
     attachFocusHandlers();
-
-    // NEW: catch initial auto-focused field (and late autofocus shortly after)
     ensureInitialFocusTrigger();
 
-    attachSaveCaptureHandlers();        // capture submits/Enter and stage a candidate
-    checkPendingSaveSuggestion();       // show “Save to GhostKeys?” on load if a candidate exists
+    // Capture submits / Enter to stage a candidate; then propose Save/Update
+    attachSaveCaptureHandlers();
+    checkPendingSaveSuggestion();
+
+    // Keep in sync with background changes (vault switch, add/update, auth)
+    chrome.runtime.onMessage.addListener((msg) => {
+        if (msg && msg.type === 'gk-app-state-updated') refreshCredsForHost();
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && Object.keys(changes).some((k) => k.startsWith('gk_'))) {
+            refreshCredsForHost();
+        }
+    });
 }
 
-function ensureInitialFocusTrigger() {
-    const hasCreds = !!(credsCache && credsCache.length);
+async function refreshCredsForHost() {
+    const host = location.host;
+    const { ok, creds } = await sendMsg('gk-get-creds-for-host', { host, href: location.href });
+    if (!ok) return;
 
-    // Try immediately…
-    const first = getDeepActiveElement();
-    if (first && (isUserField(first) || isPassField(first)) && isVisibleEnabled(first)) {
-        if (hasCreds) {
-            anchorEl = first;
-            showMiniTrigger(first);
-            return;
-        }
-    }
+    const hadNone = !credsCache || credsCache.length === 0;
+    credsCache = Array.isArray(creds) ? creds : [];
 
-    // …and then poll briefly to catch late autofocus/hydration
-    const maxMs = 1500;   // total wait window
-    const stepMs = 50;    // polling interval
-    const deadline = Date.now() + maxMs;
-
-    const timer = setInterval(() => {
+    // If we just acquired creds and a field is focused, surface the mini trigger
+    if (hadNone && credsCache.length) {
         const el = getDeepActiveElement();
         if (el && (isUserField(el) || isPassField(el)) && isVisibleEnabled(el)) {
-            clearInterval(timer);
-            if (hasCreds) {
-                anchorEl = el;
-                showMiniTrigger(el);
-            }
-        } else if (Date.now() > deadline) {
-            clearInterval(timer);
+            anchorEl = el;
+            showMiniTrigger(el);
         }
-    }, stepMs);
-
-    // Handle BFCache back/forward restores where focus comes back silently
-    window.addEventListener('pageshow', () => {
-        const el2 = getDeepActiveElement();
-        if (el2 && (isUserField(el2) || isPassField(el2)) && isVisibleEnabled(el2)) {
-            if (hasCreds) {
-                anchorEl = el2;
-                showMiniTrigger(el2);
-            }
-        }
-    }, { once: true });
+    }
 }
 
-// Follow activeElement through shadow roots (if any)
+/* ────────────────────────────────────────────────────────────────────────────
+ * Messaging helper
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function sendMsg(type, payload = {}) {
+    return new Promise((resolve) => chrome.runtime.sendMessage({ type, ...payload }, resolve));
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Field detection & fill helpers
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Follow activeElement through shadow roots. */
 function getDeepActiveElement(root = document) {
     let a = root.activeElement;
-    while (a && a.shadowRoot && a.shadowRoot.activeElement) {
-        a = a.shadowRoot.activeElement;
-    }
+    while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement;
     return a;
 }
+
+function isUserField(el) {
+    if (!(el instanceof HTMLInputElement)) return false;
+    const type = (el.type || '').toLowerCase();
+    const name = (el.name || '').toLowerCase();
+    const ac = (el.getAttribute('autocomplete') || '').toLowerCase();
+    if (type === 'email') return true;
+    if (ac.includes('username') || ac.includes('email')) return true;
+    if (type === 'text' && /user|login|email/i.test(name)) return true;
+    return false;
+}
+
+function isPassField(el) {
+    return el instanceof HTMLInputElement && (el.type || '').toLowerCase() === 'password';
+}
+
+function isVisibleEnabled(el) {
+    if (!el) return false;
+    const s = getComputedStyle(el);
+    if (s.visibility === 'hidden' || s.display === 'none' || el.disabled) return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+}
+
+function markFilled() {
+    document.documentElement.setAttribute(GK.ATTRS.filled, '1');
+}
+
+function fill(input, value) {
+    if (!input) return;
+    if (input.isContentEditable) {
+        input.textContent = value;
+    } else {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+function findPasswordInput(root = document) {
+    const candidates = Array.from(root.querySelectorAll('input[type="password"]')).filter(
+        isVisibleEnabled
+    );
+    return candidates[0] || null;
+}
+
+function findAnyUsernameInput(root = document) {
+    const selectors = [
+        'input[autocomplete="username"]',
+        'input[type="email"]',
+        'input[name*="user" i]',
+        'input[name*="login" i]',
+        'input[name*="email" i]',
+        'input[type="text"]',
+    ];
+    for (const sel of selectors) {
+        const node = Array.from(root.querySelectorAll(sel)).find(isVisibleEnabled);
+        if (node) return node;
+    }
+    return null;
+}
+
+function getInputValue(el) {
+    if (!el) return '';
+    return el.isContentEditable ? (el.textContent || '').trim() : (el.value || '').trim();
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>\"']/g, (c) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+    })[c]);
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Focus/initial trigger
+ * ──────────────────────────────────────────────────────────────────────────── */
 
 function attachFocusHandlers() {
     // Capture phase to catch focus even through shadow hosts
@@ -114,177 +193,57 @@ function onFocusIn(e) {
     showMiniTrigger(anchorEl);
 }
 
-function isUserField(el) {
-    if (!(el instanceof HTMLInputElement)) return false;
-    const type = (el.type || '').toLowerCase();
-    const name = (el.name || '').toLowerCase();
-    const ac = (el.getAttribute('autocomplete') || '').toLowerCase();
-    if (type === 'email') return true;
-    if (ac.includes('username') || ac.includes('email')) return true;
-    if (type === 'text' && (/user|login|email/i).test(name)) return true;
-    return false;
-}
+function ensureInitialFocusTrigger() {
+    const hasCreds = !!(credsCache && credsCache.length);
 
-function isPassField(el) {
-    return el instanceof HTMLInputElement && (el.type || '').toLowerCase() === 'password';
-}
-
-function sendMsg(type, payload = {}) {
-    return new Promise(resolve => chrome.runtime.sendMessage({ type, ...payload }, resolve));
-}
-
-// ---------- NEW/CHANGED: narrow observer + smarter debounce ----------
-
-function observeRelevantMutations(effect) {
-    stopObserving();
-
-    let scheduled = false;
-    const run = () => {
-        if (scheduled) return;
-        scheduled = true;
-        // Slightly longer debounce to avoid UI thrash
-        setTimeout(() => {
-            scheduled = false;
-            effect();
-        }, 500);
-    };
-
-    mo = new MutationObserver((mutations) => {
-        for (const m of mutations) {
-            if (m.type === 'childList') {
-                if (hasAuthishNodes(m.addedNodes)) { run(); return; }
-            } else if (m.type === 'attributes') {
-                const t = m.target;
-                if (!t || !(t instanceof Element)) continue;
-                // Attributes that commonly affect auth inputs
-                if (t.tagName === 'INPUT' || t.tagName === 'FORM') { run(); return; }
-            }
+    // Try immediately…
+    const first = getDeepActiveElement();
+    if (first && (isUserField(first) || isPassField(first)) && isVisibleEnabled(first)) {
+        if (hasCreds) {
+            anchorEl = first;
+            showMiniTrigger(first);
+            return;
         }
-    });
-
-    mo.observe(document, {
-        subtree: true,
-        childList: true,
-        attributes: true,
-        // Only attributes that likely affect visibility/role/value detection
-        attributeFilter: ['type', 'name', 'autocomplete', 'style', 'class']
-    });
-}
-
-function hasAuthishNodes(nodeList) {
-    for (const n of nodeList) {
-        if (!(n instanceof Element)) continue;
-        const tag = n.tagName;
-        if (tag === 'INPUT' || tag === 'FORM') return true;
-        // cheap subtree probe
-        if (n.querySelector && n.querySelector('input[type="password"], form, input[type="email"]')) return true;
-    }
-    return false;
-}
-
-function stopObserving() {
-    if (mo) { try { mo.disconnect(); } catch {} }
-    mo = null;
-}
-
-// ---------- Generic autofill & helpers (unchanged) ----------
-
-function tryGenericFill(creds) {
-    // Only fill once per page for safety
-    if (document.documentElement.hasAttribute(GK.ATTRS.filled)) return false;
-
-    const password = findPasswordInput();
-    if (!password) return false;
-
-    const username = findUsernameInputNear(password) || findAnyUsernameInput();
-    const form = password.form || username?.form || password.closest('form') || document;
-
-    if (!username) {
-        // Two-stage flows (email first), let overrides handle them
-        return false;
     }
 
-    if (creds.length === 1) {
-        fill(username, creds[0].username);
-        fill(password, creds[0].password);
-        markFilled();
-        return true;
-    } else {
-        showChooser(creds, (chosen) => {
-            fill(username, chosen.username);
-            fill(password, chosen.password);
-            markFilled();
-        }, { anchor: username || password || form });
-        return true;
-    }
+    // …then poll briefly to catch late autofocus/hydration
+    const maxMs = 1500;
+    const stepMs = 50;
+    const deadline = Date.now() + maxMs;
+
+    const timer = setInterval(() => {
+        const el = getDeepActiveElement();
+        if (el && (isUserField(el) || isPassField(el)) && isVisibleEnabled(el)) {
+            clearInterval(timer);
+            if (hasCreds) {
+                anchorEl = el;
+                showMiniTrigger(el);
+            }
+        } else if (Date.now() > deadline) {
+            clearInterval(timer);
+        }
+    }, stepMs);
+
+    // BFCache back/forward restores where focus returns silently
+    window.addEventListener(
+        'pageshow',
+        () => {
+            const el2 = getDeepActiveElement();
+            if (el2 && (isUserField(el2) || isPassField(el2)) && isVisibleEnabled(el2)) {
+                if (hasCreds) {
+                    anchorEl = el2;
+                    showMiniTrigger(el2);
+                }
+            }
+        },
+        { once: true }
+    );
 }
 
-function markFilled() {
-    document.documentElement.setAttribute(GK.ATTRS.filled, '1');
-}
+/* ────────────────────────────────────────────────────────────────────────────
+ * Chooser overlay (Shadow DOM)
+ * ──────────────────────────────────────────────────────────────────────────── */
 
-function fill(input, value) {
-    if (!input) return;
-    if (input.isContentEditable) {
-        input.textContent = value;
-    } else {
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-        nativeInputValueSetter.call(input, value);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-}
-
-function findPasswordInput(root = document) {
-    const candidates = Array.from(root.querySelectorAll('input[type="password"]'))
-        .filter(isVisibleEnabled);
-    return candidates[0] || null;
-}
-
-function findUsernameInputNear(password) {
-    if (!password) return null;
-    const form = password.form || password.closest('form');
-    const scope = form || document;
-    const selectors = [
-        'input[autocomplete="username"]',
-        'input[type="email"]',
-        'input[name*="user" i]',
-        'input[name*="login" i]',
-        'input[name*="email" i]',
-        'input[type="text"]'
-    ];
-    for (const sel of selectors) {
-        const node = Array.from(scope.querySelectorAll(sel)).find(isVisibleEnabled);
-        if (node) return node;
-    }
-    return null;
-}
-
-function findAnyUsernameInput(root = document) {
-    const selectors = [
-        'input[autocomplete="username"]',
-        'input[type="email"]',
-        'input[name*="user" i]',
-        'input[name*="login" i]',
-        'input[name*="email" i]',
-        'input[type="text"]'
-    ];
-    for (const sel of selectors) {
-        const node = Array.from(root.querySelectorAll(sel)).find(isVisibleEnabled);
-        if (node) return node;
-    }
-    return null;
-}
-
-function isVisibleEnabled(el) {
-    if (!el) return false;
-    const s = getComputedStyle(el);
-    if (s.visibility === 'hidden' || s.display === 'none' || el.disabled) return false;
-    const rect = el.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
-}
-
-// —— Small chooser overlay (Shadow DOM to avoid CSS collisions) ——
 function showChooser(creds, onPick, { anchor } = {}) {
     if (!Array.isArray(creds) || creds.length === 0) return;
     destroyChooser();
@@ -311,11 +270,14 @@ function showChooser(creds, onPick, { anchor } = {}) {
     </div>
   `;
     const list = wrap.querySelector('.list');
-    creds.forEach(c => {
+    creds.forEach((c) => {
         const row = document.createElement('div');
         row.className = 'row';
         row.innerHTML = `<span class="user">${escapeHtml(c.username)}</span><span class="dom">${escapeHtml(c.domain)}</span>`;
-        row.addEventListener('click', () => { onPick(c); destroyChooser(); });
+        row.addEventListener('click', () => {
+            onPick(c);
+            destroyChooser();
+        });
         list.appendChild(row);
     });
     shadow.appendChild(wrap);
@@ -349,130 +311,9 @@ function positionOverlayNear(anchor) {
     overlayRoot.style.left = `${left}px`;
 }
 
-function throttle(fn, delay = 200) {
-    let last = 0, timer = null, lastArgs = null;
-    return (...args) => {
-        const now = Date.now();
-        lastArgs = args;
-        if (!last || now - last >= delay) {
-            last = now;
-            fn(...args);
-        } else if (!timer) {
-            timer = setTimeout(() => {
-                timer = null;
-                last = Date.now();
-                fn(...lastArgs);
-            }, delay - (now - last));
-        }
-    };
-}
-
-function bindRepositionHandlers() {
-    if (repositionHandlersBound) return;
-    const throttled = throttle(() => {
-        positionOverlayNear(anchorEl);
-        positionMiniNear(anchorEl);
-    }, 100);
-    window.addEventListener('scroll', throttled, true);
-    window.addEventListener('resize', throttled, true);
-    repositionHandlersBound = true;
-}
-
-function bindDismissHandlers() {
-    const onDocClick = (e) => {
-        if (!overlayRoot) return;
-        const path = e.composedPath ? e.composedPath() : [];
-        if (path.includes(overlayRoot)) return; // click inside overlay
-        if (anchorEl && path.includes(anchorEl)) return; // clicking the field — keep open
-        destroyChooser();
-    };
-    const onKey = (e) => { if (e.key === 'Escape') destroyChooser(); };
-    document.addEventListener('mousedown', onDocClick, true);
-    document.addEventListener('touchstart', onDocClick, true);
-    document.addEventListener('keydown', onKey, true);
-}
-
-function destroyChooser() {
-    if (overlayRoot && overlayRoot.isConnected) overlayRoot.remove();
-    overlayRoot = null;
-}
-
-function escapeHtml(s) {
-    return String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
-}
-
-// —— Site-specific overrides (lightweight) ——
-async function trySiteOverrides(creds) {
-    const h = location.hostname;
-    const table = [
-        { test: host => host.endsWith('accounts.google.com'), fn: overrideGoogle },
-        { test: host => host.includes('signin.aws.amazon.com'), fn: overrideAws },
-    ];
-    for (const { test, fn } of table) {
-        if (test(h)) {
-            const ok = await fn(creds).catch(() => false);
-            if (ok) return true;
-        }
-    }
-    return false;
-}
-
-async function overrideGoogle(creds) {
-    const emailField = document.querySelector('input[type="email"], #identifierId');
-    if (!emailField) return false;
-
-    const chosen = await pickIfMany(creds);
-    if (!chosen) return false;
-
-    if (!emailField.value) {
-        fill(emailField, chosen.username);
-    }
-    const next1 = document.querySelector('#identifierNext button, #identifierNext');
-    if (next1) next1.click();
-
-    const pass = await waitFor(() => document.querySelector('input[type="password"]'), 8000);
-    if (!pass) return true;
-    if (!pass.value) fill(pass, chosen.password);
-    markFilled();
-    return true;
-}
-
-async function overrideAws(creds) {
-    const chosen = await pickIfMany(creds);
-    if (!chosen) return false;
-
-    const userSel = 'input#username, input[name="username"], input[name="account"], input[type="email"]';
-    const passSel = 'input#password, input[name="password"], input[type="password"]';
-    const user = document.querySelector(userSel);
-    const pass = document.querySelector(passSel);
-    if (user) fill(user, chosen.username);
-    if (pass) fill(pass, chosen.password);
-
-    if (user || pass) { markFilled(); return true; }
-    return false;
-}
-
-function pickIfMany(creds) {
-    return new Promise(resolve => {
-        if (creds.length === 1) return resolve(creds[0]);
-        showChooser(creds, c => resolve(c));
-        setTimeout(() => resolve(null), 15000); // avoid hanging forever
-    });
-}
-
-function waitFor(fn, timeoutMs = 5000, interval = 100) {
-    return new Promise(resolve => {
-        const t0 = Date.now();
-        const timer = setInterval(() => {
-            const v = fn();
-            if (v) { clearInterval(timer); resolve(v); }
-            else if (Date.now() - t0 > timeoutMs) { clearInterval(timer); resolve(null); }
-        }, interval);
-    });
-}
-
-
-// mini icon funcs
+/* ────────────────────────────────────────────────────────────────────────────
+ * Mini key trigger
+ * ──────────────────────────────────────────────────────────────────────────── */
 
 function showMiniTrigger(anchor) {
     destroyMiniTrigger();
@@ -511,10 +352,10 @@ function showMiniTrigger(anchor) {
     document.documentElement.appendChild(host);
     miniRoot = host;
 
-    // position after render
+    // Position after render
     requestAnimationFrame(() => positionMiniNear(anchor));
 
-    // clicking the key opens the chooser anchored to this field
+    // Clicking the key opens the chooser anchored to this field
     const btn = shadow.querySelector('.btn');
     btn.addEventListener('click', (ev) => {
         ev.preventDefault();
@@ -522,17 +363,20 @@ function showMiniTrigger(anchor) {
 
         if (!credsCache || credsCache.length === 0) return;
 
-        showChooser(credsCache, (chosen) => {
-            if (!chosen) return;
-            const scope = anchorEl?.form || anchorEl?.closest('form') || document;
-            const user = isUserField(anchorEl) ? anchorEl : findAnyUsernameInput(scope);
-            const pass = isPassField(anchorEl) ? anchorEl : findPasswordInput(scope);
-            if (user && chosen.username != null) fill(user, chosen.username);
-            if (pass && chosen.password != null) fill(pass, chosen.password);
-        }, { anchor: anchorEl });
-    }, { once: true });
+        showChooser(
+            credsCache,
+            (chosen) => {
+                if (!chosen) return;
+                const scope = anchorEl?.form || anchorEl?.closest('form') || document;
+                const user = isUserField(anchorEl) ? anchorEl : findAnyUsernameInput(scope);
+                const pass = isPassField(anchorEl) ? anchorEl : findPasswordInput(scope);
+                if (user && chosen.username != null) fill(user, chosen.username);
+                if (pass && chosen.password != null) fill(pass, chosen.password);
+            },
+            { anchor: anchorEl }
+        );
+    });
 
-    // ensure it follows the field
     bindRepositionHandlers();
     bindMiniDismissHandlers();
 }
@@ -541,8 +385,7 @@ function positionMiniNear(anchor) {
     if (!miniRoot || !miniRoot.isConnected || !anchor) return;
 
     const rect = anchor.getBoundingClientRect();
-    const size = 28;       // button size
-    const pad = 6;         // gap from input
+    const size = 28;
     const top = Math.round(rect.top + (rect.height - size) / 2);
     let left = Math.round(rect.right - size - 4); // slight inset
 
@@ -564,7 +407,7 @@ function bindMiniDismissHandlers() {
     const onDocClick = (e) => {
         if (!miniRoot) return;
         const path = e.composedPath ? e.composedPath() : [];
-        if (path.includes(miniRoot)) return;     // click on button → ignore
+        if (path.includes(miniRoot)) return; // click on button → ignore
         if (anchorEl && path.includes(anchorEl)) return; // click in field → keep
         destroyMiniTrigger();
     };
@@ -576,21 +419,33 @@ function bindMiniDismissHandlers() {
     document.addEventListener('keydown', onKey, true);
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Save staging (submit/Enter) and pending suggestion handling
+ * ──────────────────────────────────────────────────────────────────────────── */
+
 function attachSaveCaptureHandlers() {
     // Capture native form submits early
-    document.addEventListener('submit', (e) => {
-        tryStageCandidateFromScope(e.target);
-    }, true);
+    document.addEventListener(
+        'submit',
+        (e) => {
+            tryStageCandidateFromScope(e.target);
+        },
+        true
+    );
 
     // Fallback: Enter pressed in a password input (many sites login via JS)
-    document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
-        const t = e.target;
-        if (!(t instanceof Element)) return;
-        if (!isPassField(t)) return;
-        const scope = t.form || t.closest('form') || document;
-        tryStageCandidateFromScope(scope);
-    }, true);
+    document.addEventListener(
+        'keydown',
+        (e) => {
+            if (e.key !== 'Enter') return;
+            const t = e.target;
+            if (!(t instanceof Element)) return;
+            if (!isPassField(t)) return;
+            const scope = t.form || t.closest('form') || document;
+            tryStageCandidateFromScope(scope);
+        },
+        true
+    );
 }
 
 function tryStageCandidateFromScope(scope) {
@@ -601,23 +456,18 @@ function tryStageCandidateFromScope(scope) {
     if (!username || !password) return;
 
     // Avoid staging if this exact domain+username already exists in cache
-    const exists = !!(credsCache || []).find(c =>
-        (c.domain||'').toLowerCase() === location.hostname.toLowerCase() &&
-        (c.username||'').toLowerCase() === username.toLowerCase()
+    const exists = !!(credsCache || []).find(
+        (c) =>
+            (c.domain || '').toLowerCase() === location.hostname.toLowerCase() &&
+            (c.username || '').toLowerCase() === username.toLowerCase()
     );
     if (exists) return;
 
     sendMsg('gk-propose-save', {
         domain: location.hostname,
         username,
-        password
+        password,
     });
-}
-
-function getInputValue(el) {
-    if (!el) return '';
-    return el.isContentEditable ? (el.textContent || '').trim()
-        : (el.value || '').trim();
 }
 
 async function checkPendingSaveSuggestion() {
@@ -625,38 +475,63 @@ async function checkPendingSaveSuggestion() {
     const cand = res?.cand;
     if (!cand) return;
 
-    // Only show if it’s for this site or we arrived from that site (redirect case)
-    const sameHost = (location.hostname || '').toLowerCase() === (cand.domain || '').toLowerCase();
-    const fromHost = document.referrer && document.referrer.toLowerCase().includes((cand.domain || '').toLowerCase());
+    const candDomainLc = (cand.domain || '').toLowerCase();
+    const hereHostLc = (location.hostname || '').toLowerCase();
+
+    // Show on same host or if we arrived from that host (redirect case)
+    const sameHost = hereHostLc === candDomainLc;
+    const fromHost =
+        document.referrer && document.referrer.toLowerCase().includes(candDomainLc);
     if (!sameHost && !fromHost) {
-        // Not the right context — clear to avoid odd prompts elsewhere
         await sendMsg('gk-clear-pending');
         return;
     }
 
-    // If creds now exist (e.g., user already saved), skip
-    const dup = !!(credsCache || []).find(c =>
-        (c.domain||'').toLowerCase() === (cand.domain||'').toLowerCase() &&
-        (c.username||'').toLowerCase() === (cand.username||'').toLowerCase()
+    // Always fetch fresh creds for the candidate domain
+    let credsForCand = [];
+    const lookup = await sendMsg('gk-get-creds-for-host', {
+        host: cand.domain,
+        href: `https://${cand.domain}/`,
+    });
+    if (lookup?.ok) credsForCand = Array.isArray(lookup.creds) ? lookup.creds : [];
+
+    const candUserLc = (cand.username || '').toLowerCase();
+    const domainEntries = credsForCand.filter(
+        (c) => (c.domain || '').toLowerCase() === candDomainLc
     );
-    if (dup) {
+    const exact = domainEntries.find(
+        (c) => (c.username || '').toLowerCase() === candUserLc
+    );
+
+    if (exact) {
+        // same username; show Update if password changed
+        if (String(exact.password || '') !== String(cand.password || '')) {
+            showUpdateBarPassword(exact, cand);
+            return;
+        }
+        // identical → nothing to do
         await sendMsg('gk-clear-pending');
         return;
     }
 
+    // no username match → show existing Save-new bar
     showSaveBar(cand);
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Suggestion bars (Save new / Update password)
+ * ──────────────────────────────────────────────────────────────────────────── */
 
 function showSaveBar(cand) {
     destroySaveBar();
 
-    const host = document.createElement('div');
-    host.style.position = 'fixed';
-    host.style.right = '12px';
-    host.style.top = '12px';
-    host.style.zIndex = '2147483647';
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.right = '12px';
+    container.style.top = '12px';
+    container.style.zIndex = '2147483647';
 
-    const shadow = host.attachShadow({ mode: 'open' });
+    const shadow = container.attachShadow({ mode: 'open' });
     const wrap = document.createElement('div');
     wrap.innerHTML = `
     <style>
@@ -686,21 +561,95 @@ function showSaveBar(cand) {
     </div>
   `;
     shadow.appendChild(wrap);
-    document.documentElement.appendChild(host);
-    saveBarRoot = host;
+    document.documentElement.appendChild(container);
+    saveBarRoot = container;
 
     shadow.getElementById('save').addEventListener('click', async () => {
         const res = await sendMsg('gk-add-credential', {
-            domain: cand.domain, username: cand.username, password: cand.password
+            domain: cand.domain,
+            username: cand.username,
+            password: cand.password,
         });
         await sendMsg('gk-clear-pending');
 
         if (res?.ok) {
             // update in-memory cache so chooser works immediately
             credsCache = Array.isArray(credsCache) ? credsCache : [];
-            if (!credsCache.some(c => c.domain === cand.domain && c.username === cand.username)) {
-                credsCache.push({ domain: cand.domain, username: cand.username, password: cand.password });
+            if (!credsCache.some((c) => c.domain === cand.domain && c.username === cand.username)) {
+                credsCache.push({
+                    domain: cand.domain,
+                    username: cand.username,
+                    password: cand.password,
+                });
             }
+        }
+        destroySaveBar();
+    });
+
+    shadow.getElementById('dismiss').addEventListener('click', async () => {
+        await sendMsg('gk-clear-pending');
+        destroySaveBar();
+    });
+}
+
+function showUpdateBarPassword(oldEntry, cand) {
+    destroySaveBar();
+
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.right = '12px';
+    container.style.top = '12px';
+    container.style.zIndex = '2147483647';
+
+    const shadow = container.attachShadow({ mode: 'open' });
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+    <style>
+      .bar {
+        font: 13px/1.45 system-ui,-apple-system, Segoe UI, Roboto, sans-serif;
+        background:#0f172a; color:#e5e7eb; border:1px solid #334155;
+        border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.35);
+        padding:10px; min-width:260px; max-width:340px;
+      }
+      .row { display:flex; gap:8px; align-items:center; justify-content:space-between; }
+      .txt { margin-right:8px; }
+      .dom { opacity:.75; }
+      .btn { background:#2563eb; color:#fff; border:none; border-radius:8px; padding:6px 10px; cursor:pointer; font-weight:700; }
+      .ghost { background:#111827; color:#cbd5e1; margin-right:6px; }
+    </style>
+    <div class="bar">
+      <div class="row">
+        <div class="txt">
+          Update password for <span class="dom">${escapeHtml(cand.domain)}</span>?
+          <div style="opacity:.8;font-size:12px;margin-top:2px;">${escapeHtml(cand.username)}</div>
+        </div>
+        <div>
+          <button class="btn ghost" id="dismiss">Not now</button>
+          <button class="btn" id="update">Update</button>
+        </div>
+      </div>
+    </div>
+  `;
+    shadow.appendChild(wrap);
+    document.documentElement.appendChild(container);
+    saveBarRoot = container;
+
+    shadow.getElementById('update').addEventListener('click', async () => {
+        const res = await sendMsg('gk-update-credential', {
+            domain: cand.domain,
+            username: oldEntry.username, // entry to update
+            password: cand.password,     // new password
+        });
+        await sendMsg('gk-clear-pending');
+
+        if (res?.ok) {
+            // update local cache immediately for chooser/autofill
+            const idx = (credsCache || []).findIndex(
+                (c) =>
+                    (c.domain || '').toLowerCase() === (cand.domain || '').toLowerCase() &&
+                    (c.username || '').toLowerCase() === (oldEntry.username || '').toLowerCase()
+            );
+            if (idx >= 0) credsCache[idx].password = cand.password;
         }
         destroySaveBar();
     });
@@ -714,4 +663,60 @@ function showSaveBar(cand) {
 function destroySaveBar() {
     if (saveBarRoot && saveBarRoot.isConnected) saveBarRoot.remove();
     saveBarRoot = null;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Positioning & dismissal plumbing
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function throttle(fn, delay = 200) {
+    let last = 0,
+        timer = null,
+        lastArgs = null;
+    return (...args) => {
+        const now = Date.now();
+        lastArgs = args;
+        if (!last || now - last >= delay) {
+            last = now;
+            fn(...args);
+        } else if (!timer) {
+            timer = setTimeout(() => {
+                timer = null;
+                last = Date.now();
+                fn(...lastArgs);
+            }, delay - (now - last));
+        }
+    };
+}
+
+function bindRepositionHandlers() {
+    if (repositionHandlersBound) return;
+    const throttled = throttle(() => {
+        positionOverlayNear(anchorEl);
+        positionMiniNear(anchorEl);
+    }, 100);
+    window.addEventListener('scroll', throttled, true);
+    window.addEventListener('resize', throttled, true);
+    repositionHandlersBound = true;
+}
+
+function bindDismissHandlers() {
+    const onDocClick = (e) => {
+        if (!overlayRoot) return;
+        const path = e.composedPath ? e.composedPath() : [];
+        if (path.includes(overlayRoot)) return; // click inside overlay
+        if (anchorEl && path.includes(anchorEl)) return; // clicking the field — keep open
+        destroyChooser();
+    };
+    const onKey = (e) => {
+        if (e.key === 'Escape') destroyChooser();
+    };
+    document.addEventListener('mousedown', onDocClick, true);
+    document.addEventListener('touchstart', onDocClick, true);
+    document.addEventListener('keydown', onKey, true);
+}
+
+function destroyChooser() {
+    if (overlayRoot && overlayRoot.isConnected) overlayRoot.remove();
+    overlayRoot = null;
 }

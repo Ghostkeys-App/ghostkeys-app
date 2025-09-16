@@ -2,39 +2,98 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>GhostKeys</title>
-    <link rel="stylesheet" href="popup.css" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <style>
+        * { box-sizing: border-box; }
+        :root {
+            --bg:#0b1320; --card:#0f172a; --muted:#334155; --text:#e5e7eb; --sub:#94a3b8;
+            --primary:#2563eb; --primary-2:#1d4ed8; --danger:#ef4444; --ok:#10b981; --radius:12px;
+        }
+        html, body {
+            background: transparent; color: var(--text); margin: 0;
+            font: 13px/1.45 system-ui,-apple-system, Segoe UI, Roboto, sans-serif; padding: 0;
+            -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+        }
+        .mt8 { margin-top: 8px; }
+        .center { text-align: center; }
+
+        .card {
+            display:flex; flex-direction:column; width:360px;
+            background:var(--card); border:1px solid var(--muted); border-radius:var(--radius);
+            box-shadow:0 6px 28px rgba(0,0,0,.35); overflow:hidden;
+        }
+        .card.unauth { min-height: 380px; }
+
+        /* Header */
+        .hdr { padding:10px 12px; border-bottom:1px solid var(--muted); }
+        .row { display:flex; align-items:center; gap:8px; min-width:0; }
+        .between { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+        .title { font-weight:700; white-space:nowrap; }
+        .spacer { flex:1 1 auto; } /* lets the pill take the remaining space */
+        .pill {
+            border:1px solid var(--muted); border-radius:999px; padding:2px 8px; font-size:12px; color:#aab4c3;
+            min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        }
+        .pill.ok { border-color: rgba(16,185,129,.35); color:#a7f3d0; }
+
+        /* Sections */
+        .sec { padding:10px 12px; }
+        .sec.auth-center { flex:1 1 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+        .title-sec { font-weight:700; }
+
+        /* Buttons & inputs */
+        .btn { background:var(--primary); color:white; border:none; border-radius:10px; padding:7px 10px; font-weight:700; cursor:pointer; }
+        .btn:hover { background:var(--primary-2); }
+        .btn.ghost { background:#111827; color:#cbd5e1; }
+        .btn.danger { background: var(--danger); }
+        .btn:disabled { opacity:.6; cursor:not-allowed; }
+        .input, textarea, select {
+            width:100%; background:#0b1220; color:var(--text);
+            border:1px solid var(--muted); border-radius:10px; padding:8px; outline:none;
+        }
+        .input:focus, textarea:focus, select:focus, .btn:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+        select.input { padding-right:18px; }
+        .vault-row .input { flex:1 1 auto; min-width:0; }
+
+        .muted { color: var(--sub); }
+        .sep { height:10px; }
+
+        /* Modal (still used for import/reveal) */
+        .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:2147483647; }
+        .modal { width:360px; max-width:100%; overflow:hidden; background:var(--card); border:1px solid var(--muted); border-radius:var(--radius); padding:12px; }
+        .right { text-align:right; }
+
+        /* Welcome ghost (unauth) */
+        .welcome { display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; margin-top:6px; }
+        .ghostWrap { position:relative; width:160px; height:140px; }
+        .halo { position:absolute; inset:auto 0 0 0; height:28px; filter:blur(16px);
+            background: radial-gradient(ellipse at center, rgba(37,99,235,.35), transparent 60%); pointer-events:none; }
+        .ghostSVG { width:140px; height:140px; animation: floaty 3s ease-in-out infinite; }
+        @keyframes floaty { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
+        @media (prefers-reduced-motion: reduce) { .ghostSVG { animation: none; } }
+        .welcomeTitle { font-weight:700; }
+        .welcomeSub { color: var(--sub); font-size:12px; }
+    </style>
 </head>
 <body>
-<div class="wrap">
-    <h1>GhostKeys</h1>
-    
-    
-    <section class="card">
-        <h2>1) Import seed (mock)</h2>
-        <textarea id="seed" placeholder="Enter seed phrase…" rows="3"></textarea>
+<div id="cardRoot" class="card" role="region" aria-label="GhostKeys popup">
+    <div class="hdr">
         <div class="row">
-            <button id="import">Import &amp; Fetch (mock)</button>
-            <button id="clear" class="ghost">Clear all</button>
+            <div class="title">GhostKeys</div>
+            <div class="spacer"></div>
+            <div id="principalPill" class="pill" aria-live="polite">Not signed in</div>
         </div>
-        <div id="seedStatus" class="muted"></div>
-    </section>
+    </div>
     
-    
-    <section class="card">
-        <h2>2) Select a vault</h2>
-        <div id="vaults"></div>
-        <div class="row"><button id="useVault" disabled>Use this vault</button></div>
-        <div id="vaultStatus" class="muted"></div>
-    </section>
-    
-    
-    <section class="card">
-        <h2>3) Test</h2>
-        <p class="muted">Open a login page (Google, GitHub, AWS, Dropbox, Facebook, X) and watch autofill.</p>
-    </section>
+    <div id="authSec" class="sec"></div>
+    <div id="sepVault" class="sep"></div>
+    <div id="vaultSec" class="sec"></div>
+    <div class="sep"></div>
+    <div id="manageSec" class="sec"></div>
 </div>
-<script src="popup.js"></script>
+
+<script type="module" src="./dist/popup.js"></script>
 </body>
 </html>
