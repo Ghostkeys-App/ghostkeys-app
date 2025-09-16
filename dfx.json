@@ -1,10 +1,6 @@
 {
   "canisters": {
     "factory-canister-backend": {
-      "dependencies": [
-        "shared-vault-canister-backend",
-        "vault-canister-backend"
-      ],
       "candid": ".dfx/canisters/factory_canister_backend/factory-canister-backend.did",
       "type": "custom",
       "wasm": ".dfx/canisters/factory_canister_backend/factory_canister_backend.wasm",
@@ -14,42 +10,10 @@
         }
       ],
       "build": [
-        "./scripts/fetch_factory_release.sh"
-      ],
-      "post_install": [
-        "dfx generate factory-canister-backend"
-      ]
-    },
-    "shared-vault-canister-backend": {
-      "type": "custom",
-      "candid": ".dfx/canisters/shared_vault_canister_backend/shared-vault-canister-backend.did",
-      "wasm": ".dfx/canisters/shared_vault_canister_backend/shared_vault_canister_backend.wasm",
-      "metadata": [
-        {
-          "name": "candid:service"
-        }
-      ],
-      "build": [
-        "./scripts/fetch_shared_vault_release.sh"
-      ],
-      "post_install": [
-        "dfx generate shared-vault-canister-backend"
-      ]
-    },
-    "vault-canister-backend": {
-      "type": "custom",
-      "candid": ".dfx/canisters/vault_canister_backend/vault-canister-backend.did",
-      "wasm": ".dfx/canisters/vault_canister_backend/vault_canister_backend.wasm",
-      "metadata": [
-        {
-          "name": "candid:service"
-        }
-      ],
-      "build": [
-        "./scripts/fetch_vault_release.sh"
-      ],
-      "post_install": [
-        "dfx generate vault-canister-backend"
+        "./scripts/fetch_shared_vault_release.sh",
+        "./scripts/fetch_vault_release.sh",
+        "./scripts/fetch_factory_release.sh",
+        "./scripts/generate_declarations.sh"
       ]
     },
     "zero-proof-vault-frontend": {
