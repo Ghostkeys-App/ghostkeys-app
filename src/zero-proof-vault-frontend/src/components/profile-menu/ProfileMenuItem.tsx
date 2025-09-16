@@ -5,7 +5,7 @@ export type ProfileMenuItemProps = {
   label: string;
   disabled?: boolean;
   hasSubmenu?: boolean;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   title?: string;
 };
 
@@ -30,4 +30,3 @@ export function ProfileMenuItem({ icon, label, disabled, hasSubmenu, onClick, ti
 }
 
 export default ProfileMenuItem;
-
