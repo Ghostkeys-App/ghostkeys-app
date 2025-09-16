@@ -10,54 +10,15 @@ import {
 } from "../crypto/encdcrpt.ts";
 import { useAPIContext } from "../api/APIContext.tsx";
 import {
-    VaultData as ICVaultData
+    Spreadsheet as ICSpreadsheet,
 } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 
-export type WebsiteLogin = {
-    name: string;
-    entries: WebsiteLoginEntry[];
-}
+import {
+    VaultData
+} from './types.ts'
 
-export type WebsiteLoginEntry = {
-    login: string;
-    password: string;
-}
-
-export type SecurityNote = {
-    name: string;
-    content: string;
-}
-
-export type FlexibleGridCell = {
-    key: FlexGridDataKey;
-    value: string
-}
-
-export type FlexibleGridColumn = {
-    name: string;
-    meta: {
-        index: number;
-        hidden: boolean
-    };
-}
-
-export type FlexGridDataKey = { col: number; row: number };
-
-export type VaultData = {
-    flexible_grid_columns: FlexibleGridColumn[];
-    secure_notes: SecurityNote[];
-    flexible_grid: FlexibleGridCell[];
-    website_logins: WebsiteLogin[];
-};
-
-export type Vault = {
-    vaultID: string;
-    vaultName: string;
-    icpPublicAddress: string;
-    synced: boolean;
-    data: VaultData;
-    existsOnIc: boolean
-};
+import { SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
+import { decrypt_and_adapt_spreadsheet } from "./spreadsheet.ts";
 
 export const DB_NAME_VAULTS = "Ghostkeys-persistent-vaults";
 export const DB_VERSION_VAULTS = 1;
@@ -409,21 +370,17 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         return { flexible_grid_columns, secure_notes, flexible_grid, website_logins, vault_name: encryptedVaultName };
     }, [currentProfile, currentVault]);
 
-    const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: string, icVaultData: ICVaultData): Promise<{ data: VaultData; vaultName: string }> => {
+    const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: string, spreadsheet: ICSpreadsheet): Promise<{ data: VaultData; vaultName: string }> => {
         if (!currentProfile) throw new Error("No profile set");
 
         const vetKD = await getVetKDDerivedKey();
         const vaultKD = await deriveSignatureFromPublicKey(vaultIcpPublicAddress, currentProfile.identity);
         const fnKD = await deriveFinalKey(vaultKD, vetKD);
 
+        // 
         const flexible_grid_columns =
-            await Promise.all(icVaultData.flexible_grid_columns.map(async ([encName, [index, hidden]]) => {
-                const decName = await aesDecrypt(encName, fnKD);
-                return {
-                    name: decName,
-                    meta: { index: index, hidden: hidden },
-                };
-            }));
+            await decrypt_and_adapt_spreadsheet(spreadsheet, fnKD);
+
         const secure_notes =
             await Promise.all(icVaultData.secure_notes.map(async ([encName, encContent]) => {
                 const [name, content] = await Promise.all([
