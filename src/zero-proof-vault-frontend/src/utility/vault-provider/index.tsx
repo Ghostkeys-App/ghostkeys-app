@@ -511,8 +511,12 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const existingProfile = await createProfileFromSeed(potentialUserSeed);
         const userExists = await userExistsWithVetKD(existingProfile.principal.toString());
         if (userExists) {
-            await dropPersistanceStorageForAllVaults();
-            await switchProfile(existingProfile);
+            try {
+                await dropPersistanceStorageForAllVaults();
+                await switchProfile(existingProfile);
+            } catch(e) {
+                console.log("Error in from dropping IDB for vaults or profile switching", e);
+            }
             setIsSeedPhraseImport(true);
             return true;
         } else return false;

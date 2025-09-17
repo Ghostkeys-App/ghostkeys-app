@@ -168,8 +168,12 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const switchProfile = useCallback(async (profile: UserProfile) => {
-    await upsertProfile({ userID: profile.userID, seedPhrase: profile.seedPhrase, active: true });
-    await setActiveProfileById(profile.userID);
+    try {
+      await upsertProfile({ userID: profile.userID, seedPhrase: profile.seedPhrase, active: true });
+      await setActiveProfileById(profile.userID);
+    } catch (e) {
+      console.log("Error on switch profile: ", e);
+    }
     setCurrentProfile(profile);
   }, [setActiveProfileById]);
 

@@ -1,9 +1,11 @@
-import React from "react";
+import { useCallback, useEffect, useRef, useState, MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { useIdentitySystem } from "../../utility/identity";
 import ProfileMenuItem, { ProfileMenuItemProps } from "./ProfileMenuItem.tsx";
-import { useVaultProviderActions } from "../../utility/vault-provider";
+import { useVaultProviderActions, useVaultProviderState } from "../../utility/vault-provider";
 import { useNavigate } from "react-router-dom";
+import { toast } from "../../utility/toast/toast.ts";
+import GKModal from "../modals/gk-modal/GKModal.tsx";
 
 export type ProfileMenuProps = {
   open: boolean;
@@ -16,12 +18,14 @@ export type ProfileMenuProps = {
 export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afterItems = [] }: ProfileMenuProps) {
   const { currentProfile, profiles } = useIdentitySystem();
   const { validateAndImportIdentityWithVaultFromSeed } = useVaultProviderActions();
+  const { currentVault } = useVaultProviderState();
   const navigate = useNavigate();
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const panelRef = React.useRef<HTMLDivElement>(null);
-  const [pos, setPos] = React.useState<{ left: number; top: number } | null>(null);
-  const [submenuOpen, setSubmenuOpen] = React.useState(false);
-  const [submenuTop, setSubmenuTop] = React.useState<number>(0);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [submenuOpen, setSubmenuOpen] = useState(false);
+  const [submenuTop, setSubmenuTop] = useState<number>(0);
+  const [seedToSwitchPrompt, setSeedToSwitchPrompt] = useState<string>('');
 
   if (!containerRef.current && typeof document !== "undefined") {
     const el = document.createElement("div");
@@ -29,7 +33,7 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
     containerRef.current = el;
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     const el = containerRef.current!;
     if (open) {
       document.body.appendChild(el);
@@ -45,7 +49,7 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
     }
   }, [open, anchorEl]);
 
-  const position = React.useCallback(() => {
+  const position = useCallback(() => {
     if (!anchorEl || !panelRef.current) return;
     const r = anchorEl.getBoundingClientRect();
     const menu = panelRef.current;
@@ -65,18 +69,31 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
     setPos({ left, top });
   }, [anchorEl]);
 
-  if (!open || !containerRef.current) return null;
-
-  const onSwitchClick = async (seed: string) => {
+  const onSwitchProfileConfirm = useCallback(async (seed: string) => {
     try {
-      await validateAndImportIdentityWithVaultFromSeed(seed);
+      const result = await validateAndImportIdentityWithVaultFromSeed(seed);
+      if (result) {
+        toast.success("Successfully switched profile!", { idiotProof: true });
+      } else {
+        toast.error("Error on switching profile, check console!", { idiotProof: true });
+      }
     } catch (e) {
       console.warn('Switch profile failed', e);
     }
     setSubmenuOpen(false);
-  };
+  }, [])
 
-  const handleToggleSubmenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const onSwitchClick = useCallback(async (seed: string) => {
+    if (!currentVault?.synced) {
+      setSeedToSwitchPrompt(seed);
+    } else {
+      await onSwitchProfileConfirm(seed);
+    }
+  }, [currentVault]);
+
+  if (!open || !containerRef.current) return null;
+
+  const handleToggleSubmenu = (e: MouseEvent<HTMLButtonElement>) => {
     const menu = panelRef.current?.querySelector('.gk-menu') as HTMLElement | null;
     if (menu) {
       const mr = menu.getBoundingClientRect();
@@ -154,6 +171,31 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
           )}
         </div>
       </div>
+      <GKModal
+        open={seedToSwitchPrompt != ''}
+        onClose={() => setSeedToSwitchPrompt('')}
+        title="Vault is not synced, do you still want to switch?"
+        description="This will discard unsynced local changes and switch to the other profile."
+        width="sm"
+        actions={
+          <>
+            <button className="gk-btn ghost" onClick={() => setSeedToSwitchPrompt('')}>Cancel</button>
+            <button
+              className="gk-btn danger"
+              onClick={async () => { await onSwitchProfileConfirm(seedToSwitchPrompt); setSeedToSwitchPrompt('') }}
+            >
+              Switch
+            </button>
+          </>
+        }
+      >
+        <div className="gk-form">
+          <label className="gk-field">
+            <span>Current Vault</span>
+            <input disabled value={currentVault?.vaultName ?? "—"} />
+          </label>
+        </div>
+      </GKModal>
     </div>
   );
 
