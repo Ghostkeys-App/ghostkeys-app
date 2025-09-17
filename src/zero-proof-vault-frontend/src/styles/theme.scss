@@ -2268,3 +2268,40 @@ input, button {
 .gk-submenu-item.active { opacity: .6; }
 .gk-submenu-badge { font-size: .75rem; opacity: .8; }
 .gk-submenu-label { font-size: .9rem; }
+
+/* Settings Overlay */
+.gk-settings {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 16px;
+  min-height: 520px;
+}
+.gk-settings-sidebar {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px; border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.gk-settings-tab {
+  display: grid; grid-template-columns: 18px 1fr; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  color: #fff; text-decoration: none;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.06);
+}
+.gk-settings-tab:hover { background: rgba(255,255,255,.10); }
+.gk-settings-tab.active { background: rgba(255,255,255,.14); }
+
+.gk-settings-content {
+  padding: 12px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.gk-settings-section h2 { margin: 0 0 12px 0; font-size: 18px; }
+.gk-settings-row {
+  display: grid; grid-template-columns: 220px 1fr; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.1);
+}
+.gk-settings-row .label { opacity: .9; }
+.gk-settings-row .value.muted, .gk-settings-section .muted { opacity: .75; }

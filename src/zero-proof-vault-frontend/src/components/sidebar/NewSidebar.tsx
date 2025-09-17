@@ -9,6 +9,7 @@ import { toast } from "../../utility/toast";
 import { english } from "viem/accounts";
 import GKModal from "../modals/gk-modal/GKModal.tsx";
 import GKFormModal from "../modals/gk-form-modal/GKFormModal.tsx";
+import { useNavigate } from "react-router-dom";
 
 // --- Types ---
 export type TemplateKey =
@@ -61,6 +62,7 @@ export default function TemplateSidebar({
   const profileAnchorRef = React.useRef<HTMLDivElement>(null);
   const [confirmReloadOpen, setConfirmReloadOpen] = useState(false);
   const [canReload, setCanReload] = useState(false);
+  const navigate = useNavigate();
 
   const { currentVault } = useVaultProviderState();
   const { getICVault, saveCurrentVaultDataToIDB } = useVaultProviderActions();
@@ -214,7 +216,7 @@ export default function TemplateSidebar({
         onClose={() => setShowProfileMenu(false)}
         beforeItems={[
           { icon: <Sparkles size={16} />, label: 'Upgrade to Pro (coming soon)', disabled: true },
-          { icon: <SettingsIcon size={16} />, label: 'Settings', onClick: () => { setShowProfileMenu(false); toast.info('Settings coming soon'); } },
+          { icon: <SettingsIcon size={16} />, label: 'Settings', onClick: () => { navigate("/settings"); setShowProfileMenu(false) } },
         ]}
         afterItems={[
           { icon: <UserPlus size={16} />, label: 'Add Profile', onClick: () => { setShowProfileMenu(false); setShowProfileModal(true); } },
@@ -246,7 +248,7 @@ export default function TemplateSidebar({
           </label>
         </div>
       </GKModal>
-      
+
       <GKFormModal
         open={showProfileModal}
         title="Add Profile"
