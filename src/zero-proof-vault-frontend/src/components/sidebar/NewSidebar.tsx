@@ -3,12 +3,12 @@ import { Globe, Lock, Grid3X3, RotateCcw } from "lucide-react";
 import { useIdentitySystem } from "../../utility/identity";
 import VaultSelector from "../vault-selector/VaultSelector.tsx";
 import { useVaultProviderActions, useVaultProviderState } from "../../utility/vault-provider";
-import ProfileModal from "../modals/profile-modal/ProfileModal.tsx";
 import ProfileMenu from "../profile-menu/ProfileMenu.tsx";
 import { Sparkles, Settings as SettingsIcon, UserPlus } from "lucide-react";
 import { toast } from "../../utility/toast";
 import { english } from "viem/accounts";
 import GKModal from "../modals/gk-modal/GKModal.tsx";
+import GKFormModal from "../modals/gk-form-modal/GKFormModal.tsx";
 
 // --- Types ---
 export type TemplateKey =
@@ -208,11 +208,6 @@ export default function TemplateSidebar({
           </svg>
         </div>
       </div>
-      <ProfileModal
-        open={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
-        onImport={handleImport}
-      />
       <ProfileMenu
         open={showProfileMenu}
         anchorEl={profileAnchorRef.current}
@@ -251,6 +246,30 @@ export default function TemplateSidebar({
           </label>
         </div>
       </GKModal>
+      
+      <GKFormModal
+        open={showProfileModal}
+        title="Add Profile"
+        description="Enter a 12-word seed phrase to add a profile. Importing seed will result in Switching to it immidiatelly. You will loose all not synced changes."
+        fields={[
+          {
+            name: "seed",
+            label: "Seed phrase",
+            placeholder: "Enter your 12 word phrase",
+            type: "textarea",
+            required: true,
+          },
+        ]}
+        okLabel="Add"
+        cancelLabel="Cancel"
+        onClose={() => setShowProfileModal(false)}
+        onSubmit={async (values) => {
+          if (values.seed && values.seed.trim()) {
+            await handleImport(values.seed.trim());
+            setShowProfileModal(false);
+          }
+        }}
+      />
     </aside>
   );
 }

@@ -17,7 +17,7 @@ export type ProfileMenuProps = {
 
 export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afterItems = [] }: ProfileMenuProps) {
   const { currentProfile, profiles } = useIdentitySystem();
-  const { validateAndImportIdentityWithVaultFromSeed } = useVaultProviderActions();
+  const { validateAndImportIdentityWithVaultFromSeed, logOut } = useVaultProviderActions();
   const { currentVault } = useVaultProviderState();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -26,6 +26,7 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const [submenuTop, setSubmenuTop] = useState<number>(0);
   const [seedToSwitchPrompt, setSeedToSwitchPrompt] = useState<string>('');
+  const [logOutOpen, setLogOutOpen] = useState(false);
 
   if (!containerRef.current && typeof document !== "undefined") {
     const el = document.createElement("div");
@@ -140,7 +141,7 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
 
           {/* I would need to move this one later to the New Sidebar really */}
 
-          <ProfileMenuItem label="Log Out" onClick={() => { }/**should add later */} />
+          <ProfileMenuItem label="Log Out" onClick={() => setLogOutOpen(true)} />
 
           {submenuOpen && (
             <div className="gk-submenu" role="menu" style={{ top: submenuTop }}>
@@ -194,6 +195,33 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
             <span>Current Vault</span>
             <input disabled value={currentVault?.vaultName ?? "—"} />
           </label>
+        </div>
+      </GKModal>
+
+      <GKModal
+        open={logOutOpen}
+        onClose={() => setLogOutOpen(false)}
+        title="Do you really want to Log Out?"
+        description="By loggin out all of the local not-synced changes and all of the local settings will be eraced and you would be presented with new Profile."
+        width="sm"
+        actions={
+          <>
+            <button className="gk-btn ghost" onClick={() => setLogOutOpen(false)}>Cancel</button>
+            <button
+              className="gk-btn danger"
+              onClick={async () => {
+                await logOut();
+                // Hard reload + redirect 
+                // TODO: Look at this later if we need to change
+                window.location.href = "/";
+              }}
+            >
+              Log Out
+            </button>
+          </>
+        }
+      >
+        <div className="gk-form">
         </div>
       </GKModal>
     </div>

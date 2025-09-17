@@ -32,6 +32,7 @@ export type IdentityContextType = {
   switchProfile: (profile: UserProfile) => Promise<void>;
   setActiveProfileById: (userID: string) => Promise<void>;
   addProfileFromSeed: (seed: string) => Promise<UserProfile>;
+  eraceIdentities: () => Promise<void>;
 };
 
 type indexDBProfile = {
@@ -167,6 +168,22 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     setProfiles(nextProfiles);
   }, []);
 
+  const dropPersistanceStorageForAllProfiles = useCallback(async () => {
+    if (!currentProfile) throw new Error("No profile set");
+    if (!db.current) throw new Error("DB not initialized");
+
+    await new Promise<void>((res, rej) => {
+      const tx = db.current!.transaction(PROFILES_STORE, "readwrite");
+      const store = tx.objectStore(PROFILES_STORE);
+      const req = store.clear();
+
+      req.onerror = () => rej(req.error);
+      tx.onabort = () => rej(tx.error ?? new Error("IDB tx aborted"));
+      tx.onerror = () => rej(tx.error ?? new Error("IDB tx error"));
+      tx.oncomplete = () => res();
+    });
+  }, [])
+
   const switchProfile = useCallback(async (profile: UserProfile) => {
     try {
       await upsertProfile({ userID: profile.userID, seedPhrase: profile.seedPhrase, active: true });
@@ -183,6 +200,11 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     return prof;
   }, [createProfileFromSeed, switchProfile]);
 
+  const eraceIdentities = useCallback(async (): Promise<void> => {
+    await dropPersistanceStorageForAllProfiles();
+    // maybe add more logic later, don't know
+  }, []);
+
   const contextValue: IdentityContextType = {
     currentProfile,
     profiles,
@@ -190,6 +212,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     switchProfile,
     setActiveProfileById,
     addProfileFromSeed,
+    eraceIdentities
   };
 
   if (!isReady) return <Loader />;
