@@ -35,6 +35,7 @@ export type IdentityContextType = {
   setActiveProfileById: (userID: string) => Promise<void>;
   addProfileFromSeed: (seed: string) => Promise<UserProfile>;
   eraceIdentities: () => Promise<void>;
+  markProfileCommited: (profile: UserProfile) => Promise<void>;
 };
 
 export type indexDBProfile = {
@@ -81,7 +82,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
       const active = all.find((p) => p.active) ?? all[0];
       if (active && active.seedPhrase) {
         const innerProfile = await createProfileFromSeed(active.seedPhrase);
-        innerProfile.commited = active.commited; 
+        innerProfile.commited = active.commited;
         setCurrentProfile(innerProfile);
       }
     } else {
@@ -213,6 +214,12 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     // maybe add more logic later, don't know
   }, []);
 
+  const markProfileCommited = useCallback(async (profile: UserProfile): Promise<void> => {
+    await upsertProfile({ userID: profile.userID, seedPhrase: profile.seedPhrase, active: true, commited: true });
+    setProfiles(p => p.map(pr => pr.seedPhrase == profile.seedPhrase ? { ...pr, commited: profile.commited } : pr));
+    setCurrentProfile({ ...profile, commited: true });
+  }, [currentProfile, profiles]);
+
   const contextValue: IdentityContextType = {
     currentProfile,
     profiles,
@@ -220,7 +227,8 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     switchProfile,
     setActiveProfileById,
     addProfileFromSeed,
-    eraceIdentities
+    eraceIdentities,
+    markProfileCommited
   };
 
   if (!isReady) return <Loader />;

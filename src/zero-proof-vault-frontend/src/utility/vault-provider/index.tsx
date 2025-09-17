@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Loader from "../loader/Loader.tsx";
-import { useIdentitySystem } from "../identity";
+import { useIdentitySystem, UserProfile } from "../identity";
 import {
     aesDecrypt,
     aesEncrypt,
@@ -91,7 +91,7 @@ const VaultActionsContext = createContext<Actions | null>(null);
 
 export function VaultContextProvider({ children }: { children: ReactNode }) {
     const db = useRef<IDBDatabase | null>(null);
-    const { currentProfile, switchProfile, createProfileFromSeed, eraceIdentities } = useIdentitySystem();
+    const { currentProfile, switchProfile, createProfileFromSeed, eraceIdentities, markProfileCommited } = useIdentitySystem();
     const { getSharedVaultCanisterAPI, getVetKDDerivedKey, userExistsWithVetKD } = useAPIContext();
 
     const [isReady, setIsReady] = useState(false);
@@ -533,7 +533,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         await api.add_or_update_vault(currentProfile.principal.toString(), currentVault.icpPublicAddress, payload);
         await setCurrentVaultSyncStatusIdb(true, true);
         setVaults((prevState) => prevState.map((v) => v.vaultID == currentVaultId ? { ...currentVault, synced: true, existsOnIc: true } : v));
-
+        await markProfileCommited(currentProfile);
     }, [currentProfile, currentVault, getSharedVaultCanisterAPI]);
 
     const logOut = useCallback(async (): Promise<void> => {
