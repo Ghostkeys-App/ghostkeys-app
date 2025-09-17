@@ -23,11 +23,13 @@ export type UserProfile = {
   seedPhrase: string;
   identity: Ed25519KeyIdentity;
   principal: Principal;
+  commited: boolean;
 };
 
+// WARNING: do not call switch profile for profiles that don't exists on the server
 export type IdentityContextType = {
   currentProfile: UserProfile;
-  profiles: Array<{ userID: string; seedPhrase: string; active: boolean }>;
+  profiles: indexDBProfile[];
   createProfileFromSeed: (seed: string) => Promise<UserProfile>;
   switchProfile: (profile: UserProfile) => Promise<void>;
   setActiveProfileById: (userID: string) => Promise<void>;
@@ -35,10 +37,11 @@ export type IdentityContextType = {
   eraceIdentities: () => Promise<void>;
 };
 
-type indexDBProfile = {
+export type indexDBProfile = {
   userID: string;
   seedPhrase: string;
   active: boolean;
+  commited: boolean; // exists on server
 }
 
 const IdentityContext = createContext<IdentityContextType | undefined>(undefined);
@@ -78,11 +81,12 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
       const active = all.find((p) => p.active) ?? all[0];
       if (active && active.seedPhrase) {
         const innerProfile = await createProfileFromSeed(active.seedPhrase);
+        innerProfile.commited = active.commited; 
         setCurrentProfile(innerProfile);
       }
     } else {
       const profile = await createProfileFromSeed();
-      const idbLikeProfile = { userID: profile.userID, seedPhrase: profile.seedPhrase, active: true };
+      const idbLikeProfile = { userID: profile.userID, seedPhrase: profile.seedPhrase, active: true, commited: false };
       await upsertProfile(idbLikeProfile);
       setProfiles([idbLikeProfile]);
       setCurrentProfile(profile);
@@ -100,6 +104,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
           userID: r?.userID,
           seedPhrase: r?.seedPhrase,
           active: !!r?.active,
+          commited: r?.commited
         }));
         resolve(rows);
       };
@@ -121,6 +126,7 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
       principal: principal,
       identity: identity,
       seedPhrase: seed,
+      commited: false
     };
   }, []);
 
@@ -186,11 +192,13 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
 
   const switchProfile = useCallback(async (profile: UserProfile) => {
     try {
-      await upsertProfile({ userID: profile.userID, seedPhrase: profile.seedPhrase, active: true });
+      // at this point profile definitelly exists on server
+      await upsertProfile({ userID: profile.userID, seedPhrase: profile.seedPhrase, active: true, commited: true });
       await setActiveProfileById(profile.userID);
     } catch (e) {
       console.log("Error on switch profile: ", e);
     }
+    profile.commited = true;
     setCurrentProfile(profile);
   }, [setActiveProfileById]);
 

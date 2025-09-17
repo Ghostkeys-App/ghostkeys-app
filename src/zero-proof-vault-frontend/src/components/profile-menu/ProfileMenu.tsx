@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { useIdentitySystem } from "../../utility/identity";
+import { indexDBProfile, useIdentitySystem } from "../../utility/identity";
 import ProfileMenuItem, { ProfileMenuItemProps } from "./ProfileMenuItem.tsx";
 import { useVaultProviderActions, useVaultProviderState } from "../../utility/vault-provider";
 import { useNavigate } from "react-router-dom";
@@ -84,13 +84,20 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
     setSubmenuOpen(false);
   }, [])
 
-  const onSwitchClick = useCallback(async (seed: string) => {
-    if (!currentVault?.synced) {
-      setSeedToSwitchPrompt(seed);
-    } else {
-      await onSwitchProfileConfirm(seed);
+  const onSwitchClick = useCallback(async (profile: indexDBProfile) => {
+    // we can't switch to not synced profile
+    if (!profile.commited) {
+      toast.error("Profile you want to switch to is not saved to server. Navigate to Settings to save it.");
+      setSeedToSwitchPrompt("");
+      setSubmenuOpen(false);
+      return;
     }
-  }, [currentVault]);
+    if (!currentVault?.synced) {
+      setSeedToSwitchPrompt(profile.seedPhrase);
+    } else {
+      await onSwitchProfileConfirm(profile.seedPhrase);
+    }
+  }, [currentVault, currentProfile]);
 
   if (!open || !containerRef.current) return null;
 
@@ -152,7 +159,7 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
                     key={p.userID}
                     className={`gk-submenu-item ${p.active ? 'active' : ''}`}
                     disabled={p.active}
-                    onClick={async () => onSwitchClick(p.seedPhrase)}
+                    onClick={async () => onSwitchClick(p)}
                   >
                     <span className="gk-submenu-label">{slug}</span>
                     {p.active && <span className="gk-submenu-badge">Active</span>}
