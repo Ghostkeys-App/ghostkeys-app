@@ -228,8 +228,6 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
           </>
         }
       >
-        <div className="gk-form">
-        </div>
       </GKModal>
     </div>
   );
