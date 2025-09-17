@@ -11,14 +11,17 @@ import {
 import { useAPIContext } from "../api/APIContext.tsx";
 import {
     Spreadsheet as ICSpreadsheet,
+    Notes as ICNotes
 } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 
 import {
-    VaultData
+    VaultData,
+    Vault
 } from './types.ts'
 
 import { SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
-import { decrypt_and_adapt_spreadsheet } from "./spreadsheet.ts";
+import { decrypt_and_adapt_columns, decrypt_and_adapt_spreadsheet } from "./spreadsheet.ts";
+import { decrypt_and_adapt_notes } from "./secure_notes.ts";
 
 export const DB_NAME_VAULTS = "Ghostkeys-persistent-vaults";
 export const DB_VERSION_VAULTS = 1;
@@ -370,7 +373,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         return { flexible_grid_columns, secure_notes, flexible_grid, website_logins, vault_name: encryptedVaultName };
     }, [currentProfile, currentVault]);
 
-    const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: string, spreadsheet: ICSpreadsheet): Promise<{ data: VaultData; vaultName: string }> => {
+    const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: string, spreadsheet: ICSpreadsheet, notes: ICNotes): Promise<{ data: VaultData; vaultName: string }> => {
         if (!currentProfile) throw new Error("No profile set");
 
         const vetKD = await getVetKDDerivedKey();
@@ -379,21 +382,14 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
 
         // 
         const flexible_grid_columns =
-            await decrypt_and_adapt_spreadsheet(spreadsheet, fnKD);
+            await decrypt_and_adapt_columns();
 
         const secure_notes =
-            await Promise.all(icVaultData.secure_notes.map(async ([encName, encContent]) => {
-                const [name, content] = await Promise.all([
-                    aesDecrypt(encName, fnKD),
-                    aesDecrypt(encContent, fnKD),
-                ]);
-                return { name, content };
-            }));
+            await decrypt_and_adapt_notes(notes, fnKD);
+
         const flexible_grid =
-            await Promise.all(icVaultData.flexible_grid.map(async ([key, encValue]) => {
-                const value = await aesDecrypt(encValue, fnKD);
-                return { key: { col: key.col, row: key.row }, value };
-            }));
+            await decrypt_and_adapt_spreadsheet(spreadsheet, fnKD);
+
         const website_logins =
             await Promise.all(icVaultData.website_logins.map(async ([encSiteName, encEntries]) => {
                 const name = await aesDecrypt(encSiteName, fnKD);

@@ -1,6 +1,5 @@
 import {
-    Spreadsheet,
-    SpreadsheetColumn
+    Spreadsheet
 } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 import {
     FlexibleGridCell
@@ -20,4 +19,8 @@ export async function decrypt_and_adapt_spreadsheet(spreadsheet: Spreadsheet, fn
     ).flat();
 
     return flexible_grid_cells;
+}
+
+export async function decrypt_and_adapt_columns() {
+    return {}
 }

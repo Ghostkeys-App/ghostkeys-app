@@ -11,6 +11,7 @@ export type WebsiteLoginEntry = {
 export type SecurityNote = {
     name: string;
     content: string;
+    x: number;
 }
 
 export type FlexibleGridCell = {
