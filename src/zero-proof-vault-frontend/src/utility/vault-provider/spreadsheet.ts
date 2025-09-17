@@ -2,7 +2,10 @@ import {
     Spreadsheet
 } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 import {
-    FlexibleGridCell
+    FlexibleGridCell,
+    ICGridColumns,
+    ICGridColumnsArray,
+    FlexibleGridColumn
 } from "./types"
 import { aesDecrypt } from "../crypto/encdcrpt";
 
@@ -21,6 +24,14 @@ export async function decrypt_and_adapt_spreadsheet(spreadsheet: Spreadsheet, fn
     return flexible_grid_cells;
 }
 
-export async function decrypt_and_adapt_columns() {
-    return {}
+export async function decrypt_and_adapt_columns(columns: ICGridColumns, fnKD: Uint8Array<ArrayBufferLike>) {
+    let columns_array: ICGridColumnsArray = Object.entries(columns) as ICGridColumnsArray;
+    const flexible_grid_columns : FlexibleGridColumn[] = (
+        await Promise.all(columns_array.map(async ([index, column]) => {
+            let name = await aesDecrypt(Buffer.from(column[0]).toString(), fnKD);
+            let hidden : boolean = column[1];
+            return { name, meta: { index, hidden }};
+        }))
+    )
+    return flexible_grid_columns;
 }

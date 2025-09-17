@@ -27,6 +27,9 @@ export type FlexibleGridColumn = {
     };
 }
 
+export type ICGridColumns = [number, [number[] | Uint8Array<ArrayBufferLike>, boolean]]
+export type ICGridColumnsArray = Array<[number, [number[] | Uint8Array<ArrayBufferLike>, boolean]]>
+
 export type FlexGridDataKey = { col: number; row: number };
 
 export type VaultData = {

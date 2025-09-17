@@ -11,17 +11,26 @@ import {
 import { useAPIContext } from "../api/APIContext.tsx";
 import {
     Spreadsheet as ICSpreadsheet,
-    Notes as ICNotes
+    SpreadsheetColumn as ICSpreadsheetColumns,
+    Notes as ICNotes,
+    VaultNames as ICVaultNames,
+    Logins as ICLogins
 } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
-
+import { Principal } from "@dfinity/principal";
 import {
     VaultData,
-    Vault
+    Vault,
+    WebsiteLoginEntry,
+    WebsiteLogin,
+    FlexGridDataKey,
+    ICGridColumns
 } from './types.ts'
 
 import { SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
 import { decrypt_and_adapt_columns, decrypt_and_adapt_spreadsheet } from "./spreadsheet.ts";
 import { decrypt_and_adapt_notes } from "./secure_notes.ts";
+import { decrypt_and_adapt_logins } from "./logins.ts";
+import WebsiteLogins from "../../pages/website-logins/WebsiteLogins.tsx";
 
 export const DB_NAME_VAULTS = "Ghostkeys-persistent-vaults";
 export const DB_VERSION_VAULTS = 1;
@@ -373,7 +382,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         return { flexible_grid_columns, secure_notes, flexible_grid, website_logins, vault_name: encryptedVaultName };
     }, [currentProfile, currentVault]);
 
-    const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: string, spreadsheet: ICSpreadsheet, notes: ICNotes): Promise<{ data: VaultData; vaultName: string }> => {
+    const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: string, spreadsheet: ICSpreadsheet, spreadsheet_colums: ICGridColumns[], notes: ICNotes, logins: ICLogins, vault_name: string): Promise<{ data: VaultData; vaultName: string }> => {
         if (!currentProfile) throw new Error("No profile set");
 
         const vetKD = await getVetKDDerivedKey();
@@ -382,7 +391,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
 
         // 
         const flexible_grid_columns =
-            await decrypt_and_adapt_columns();
+            await decrypt_and_adapt_columns(spreadsheet_columns, fnKD);
 
         const secure_notes =
             await decrypt_and_adapt_notes(notes, fnKD);
@@ -391,19 +400,9 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
             await decrypt_and_adapt_spreadsheet(spreadsheet, fnKD);
 
         const website_logins =
-            await Promise.all(icVaultData.website_logins.map(async ([encSiteName, encEntries]) => {
-                const name = await aesDecrypt(encSiteName, fnKD);
-                const entries = await Promise.all(encEntries.map(async ([encLogin, encPassword]) => {
-                    const [login, password] = await Promise.all([
-                        aesDecrypt(encLogin, fnKD),
-                        aesDecrypt(encPassword, fnKD),
-                    ]);
-                    return { login, password } as WebsiteLoginEntry;
-                }));
-                return { name, entries } as WebsiteLogin;
-            }));
+            await decrypt_and_adapt_logins(logins, fnKD);
 
-        const vaultName = await aesDecrypt(icVaultData.vault_name, fnKD);
+        const vaultName = await aesDecrypt(vault_name, fnKD);
 
         return {
             data: { flexible_grid_columns, secure_notes, flexible_grid, website_logins },
@@ -415,15 +414,34 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         if (!currentProfile) throw new Error("No profile set");
 
         const api = await getSharedVaultCanisterAPI();
-        const response = await api.get_vault(currentProfile.principal.toString(), vaultIcpPublicAddress);
+        const vaultPrincipal = Principal.from(vaultIcpPublicAddress);
+        const spreadsheet = await api.get_spreadsheet(vaultPrincipal);
+        const spreadsheet_columns = await api.get_spreadsheet_columns(vaultPrincipal);
+        const notes = await api.get_secure_notes(vaultPrincipal);
+        const logins = await api.get_logins(vaultPrincipal);
+        const vault_name = ""; // todo eilidh - include get_vault_name call
 
-        if (response?.length) {
-            return await decryptAndAdaptVaultData(vaultIcpPublicAddress, response[0]);
+        if (spreadsheet?.columns.length || notes.notes.length || vault_name.length) {
+            return await decryptAndAdaptVaultData(vaultIcpPublicAddress, spreadsheet, spreadsheet_columns, notes, logins, vault_name);
         }
         return null;
 
     }, [currentProfile, getSharedVaultCanisterAPI]);
 
+    const getICVaultData = useCallback(async (vaultIcpPublicAddress: string, vaultName: string): Promise<{ data: VaultData, vaultName: string } | null> => {
+        if (!currentProfile) throw new Error("No profile set");
+
+        const api = await getSharedVaultCanisterAPI();
+        const vaultPrincipal = Principal.from(vaultIcpPublicAddress);
+        const spreadsheet = await api.get_spreadsheet(vaultPrincipal);
+        const notes = await api.get_secure_notes(vaultPrincipal);
+
+        if (spreadsheet?.columns.length || notes.notes.length || vaultName.length) {
+            return await decryptAndAdaptVaultData(vaultIcpPublicAddress, spreadsheet, notes, vault_name);
+        }
+        return null;
+
+    }, [currentProfile, getSharedVaultCanisterAPI]);
 
     const getAllICVaults = useCallback(async (userPrincipalId: string): Promise<Array<{
         data: VaultData;
@@ -432,14 +450,15 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     }> | null> => {
         if (!currentProfile) throw new Error("No profile set");
         const api = await getSharedVaultCanisterAPI();
-        const allVaults = await api.get_all_vaults_for_user(userPrincipalId ?? currentProfile.principal.toString());
-        if (allVaults.length > 0) {
+
+        const vaults = await api.get_vault_names();
+        if ( vaults.names.length > 0 ) {
             const allDecryptedVaultsData = [];
-            for (let [principalVaultId, vaultData] of allVaults) {
-                const decryptedVaultData = await decryptAndAdaptVaultData(principalVaultId, vaultData);
+            for ( let [principalVaultId, vaultName] of vaults) {
+                const decryptedVaultData = getICVaultData(principalVaultId, vaultName);
                 allDecryptedVaultsData.push({ icpPublicAddress: principalVaultId, ...decryptedVaultData });
             }
-            return allDecryptedVaultsData;
+            return allDecryptedVaultsData; // todo eilidh - this should work once all data has been collected, revisit
         }
         return null;
     }, [currentProfile, getSharedVaultCanisterAPI])
