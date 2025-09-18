@@ -16,6 +16,8 @@ export type SecurityNote = {
     x: number;
 }
 
+export type FlexGridDataKey = { col: number; row: number };
+
 export type FlexibleGridCell = {
     key: FlexGridDataKey;
     value: string
@@ -29,10 +31,8 @@ export type FlexibleGridColumn = {
     };
 }
 
-export type ICGridColumns = [number, [number[] | Uint8Array<ArrayBufferLike>, boolean]]
-export type ICGridColumnsArray = Array<[number, [number[] | Uint8Array<ArrayBufferLike>, boolean]]>
+export type ICGridColumns = Array<[number, [Uint8Array | number[], boolean]]>
 
-export type FlexGridDataKey = { col: number; row: number };
 
 export type VaultData = {
     flexible_grid_columns: FlexibleGridColumn[];

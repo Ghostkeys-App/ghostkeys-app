@@ -16,7 +16,7 @@
     "src/zero-proof-vault-frontend"
   ],
   "dependencies": {
-    "@ghostkeys/ghostkeys-sdk": "^1.1.0",
+    "@ghostkeys/ghostkeys-sdk": "^1.1.2",
     "noble": "^1.9.1"
   },
   "devDependencies": {

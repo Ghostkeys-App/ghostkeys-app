@@ -6,16 +6,15 @@ import { aesDecrypt, aesEncrypt } from "../crypto/encdcrpt";
 import { SecurityNote } from "./types";
 import { SecureNotesMap, serializeSecureNotes } from "@ghostkeys/ghostkeys-sdk";
 
-export async function decrypt_and_adapt_notes(notes: Notes, fnKD: Uint8Array<ArrayBufferLike>) {
-    const secure_notes : SecurityNote[] =  (
-        await Promise.all(notes.notes.map(async ([x, entry]) => {
-            const [name, content] = await Promise.all([
-                aesDecrypt(Buffer.from(entry.label).toString(), fnKD),
-                aesDecrypt(Buffer.from(entry.note).toString(), fnKD)
-            ]);
-            return {name, content, x};
-        }))
-    );
+export async function decrypt_and_adapt_notes(notes: Notes, fnKD: Uint8Array<ArrayBufferLike>): Promise<SecurityNote[]> {
+    const secure_notes: SecurityNote[] = [];
+    for (const [x, note] of notes.notes) {
+        const labelStr = Buffer.from(note.label).toString();
+        const noteStr = Buffer.from(note.note).toString();
+        const labelDcrp = await aesDecrypt(labelStr, fnKD);
+        const noteDcrp = await aesDecrypt(noteStr, fnKD);
+        secure_notes.push({name: labelDcrp, content: noteDcrp, x});
+    }
     return secure_notes;
 }
 

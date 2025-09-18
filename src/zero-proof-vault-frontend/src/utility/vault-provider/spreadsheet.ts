@@ -4,36 +4,32 @@ import {
 import {
     FlexibleGridCell,
     ICGridColumns,
-    ICGridColumnsArray,
-    FlexibleGridColumn
+    FlexibleGridColumn,
+    FlexGridDataKey
 } from "./types"
 import { aesDecrypt, aesEncrypt } from "../crypto/encdcrpt";
 import { FlexGridColumns, serializeSpreadsheet, serializeSpreadsheetColumns, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
 
-export async function decrypt_and_adapt_spreadsheet(spreadsheet: Spreadsheet, fnKD: Uint8Array<ArrayBufferLike>) {
-    const flexible_grid_cells: FlexibleGridCell[] = (
-        await Promise.all(spreadsheet.columns.map(async ([x, column]) => {
-            return await Promise.all(column.rows.map(async ([y, cell]) => {
-                const str_val = Buffer.from(cell).toString();
-                const value = await aesDecrypt(str_val, fnKD);
-
-                return { key: { col: x, row: y }, value };
-            }))
-        }))
-    ).flat();
-
+export async function decrypt_and_adapt_spreadsheet(spreadsheet: Spreadsheet, fnKD: Uint8Array<ArrayBufferLike>): Promise<FlexibleGridCell[]> {
+    const flexible_grid_cells: FlexibleGridCell[] = [];
+    for (const [y, column] of spreadsheet.columns) {
+        for (const [x, value] of column.rows) {
+            const valueStr = Buffer.from(value).toString();
+            const valueDecrp = await aesDecrypt(valueStr, fnKD);
+            const key: FlexGridDataKey = { col: y, row: x };
+            flexible_grid_cells.push({ key, value: valueDecrp });
+        }
+    }
     return flexible_grid_cells;
 }
 
-export async function decrypt_and_adapt_columns(columns: ICGridColumns, fnKD: Uint8Array<ArrayBufferLike>) {
-    let columns_array: ICGridColumnsArray = Object.entries(columns) as ICGridColumnsArray;
-    const flexible_grid_columns: FlexibleGridColumn[] = (
-        await Promise.all(columns_array.map(async ([index, column]) => {
-            let name = await aesDecrypt(Buffer.from(column[0]).toString(), fnKD);
-            let hidden: boolean = column[1];
-            return { name, meta: { index, hidden } };
-        }))
-    )
+export async function decrypt_and_adapt_columns(columns: ICGridColumns, fnKD: Uint8Array<ArrayBufferLike>): Promise<FlexibleGridColumn[]> {
+    const flexible_grid_columns: FlexibleGridColumn[] = [];
+    for (const [index, [name, hidden]] of columns) {
+        const nameStr = Buffer.from(name).toString();
+        const descrpName = await aesDecrypt(nameStr, fnKD);
+        flexible_grid_columns.push({ name: descrpName, meta: { index, hidden } });
+    }
     return flexible_grid_columns;
 }
 

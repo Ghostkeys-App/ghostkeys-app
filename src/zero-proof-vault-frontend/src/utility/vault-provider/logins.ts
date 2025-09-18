@@ -11,18 +11,23 @@ import {
 import { aesDecrypt, aesEncrypt } from "../crypto/encdcrpt";
 import { LoginsMetadataMap, serializeLoginsMetadata, serializeSpreadsheet, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
 
-export async function decrypt_and_adapt_logins(logins: Logins, fnKD: Uint8Array<ArrayBufferLike>) {
-    return await Promise.all(logins.columns.map(async ([x, column]) => {
-        const name = await aesDecrypt(Buffer.from(column.label).toString(), fnKD);
-        const entries = await Promise.all(column.rows.map(async ([y, details]) => {
-            const [login, password] = await Promise.all([
-                aesDecrypt(Buffer.from(details.username).toString(), fnKD),
-                aesDecrypt(Buffer.from(details.password).toString(), fnKD)
-            ]);
-            return { login, password } as WebsiteLoginEntry
-        }));
-        return { name, entries } as WebsiteLogin
-    }));
+export async function decrypt_and_adapt_logins(logins: Logins, fnKD: Uint8Array<ArrayBufferLike>): Promise<WebsiteLogin[]> {
+    const website_logins: WebsiteLogin[] = [];
+    for (const [loginIndex, loginColumn] of logins.columns) {
+        const labelStr = Buffer.from(loginColumn.label).toString();
+        const labelDcrp = await aesDecrypt(labelStr, fnKD);
+        const entries: WebsiteLoginEntry[] = [];
+        for (const [loginEntryIndex, userPassCell] of loginColumn.rows) {
+            const userPassStr = Buffer.from(userPassCell).toString();
+            const userPassDecrpt = await aesDecrypt(userPassStr, fnKD);
+            const breakIndex = parseInt(userPassDecrpt[0]);
+            const user = userPassDecrpt.slice(1, breakIndex);
+            const pass = userPassDecrpt.slice(breakIndex);
+            entries[loginEntryIndex] = {login: user, password: pass};
+        }
+        website_logins[loginIndex] = {name: labelDcrp, entries};
+    }
+    return website_logins;
 }
 
 export const concatUserPass = (user: string, pass: string): string => `${user.length}${user}${pass}`;
@@ -44,12 +49,12 @@ export async function encryptWebsiteLoginsAndMetadata(loginsData: WebsiteLogin[]
         loginsCells[i] = tempFlexCell;
         tempFlexCell = {};
     }
-    return {meta: loginsMeta, logins: loginsData};
+    return { meta: loginsMeta, logins: loginsData };
 }
 
 export async function encryptAndSerializeWebsiteLoginsAndMetadata(loginsData: WebsiteLogin[], fnKD: Uint8Array): Promise<SerializedWebsiteLoginsObj> {
-    const {meta, logins} = await encryptWebsiteLoginsAndMetadata(loginsData, fnKD);
+    const { meta, logins } = await encryptWebsiteLoginsAndMetadata(loginsData, fnKD);
     const serializedMeta = serializeLoginsMetadata(meta);
     const serializedLogins = serializeSpreadsheet(logins);
-    return {meta: serializedMeta, logins: serializedLogins};
+    return { meta: serializedMeta, logins: serializedLogins };
 }
