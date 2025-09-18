@@ -55,7 +55,7 @@ export type Actions = {
     saveCurrentVaultDataToIDB(data: VaultData, syncedFromIC?: boolean, vaultName?: string): Promise<Vault>;
     syncCurrentVaultWithBackend(): Promise<void>;
     getICVault(vaultIcpPublicAddress: string): Promise<{ data: VaultData, vaultName: string } | null>;
-    getAllICVaults(userPrincipalId: string): Promise<Array<{ data: VaultData; vaultName: string; icpPublicAddress: string; }> | null>
+    getAllICVaults(userPrincipalId: Principal): Promise<Array<{ data: VaultData; vaultName: string; icpPublicAddress: string; }> | null>
     validateAndImportIdentityWithVaultFromSeed(potentialUserSeed: string): Promise<boolean>;
     deleteVaultFromIC(vaultPublicAddress: string): Promise<boolean>;
 }
@@ -236,7 +236,8 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     const deleteVaultFromIC = useCallback(async (vaultPublicAddress: string): Promise<boolean> => {
         const api = await getSharedVaultCanisterAPI();
         try {
-            await api.delete_vault(currentProfile.principal.toString(), vaultPublicAddress);
+            const vaultPrincipal = Principal.fromText(vaultPublicAddress);
+            await api.delete_vault(vaultPrincipal);
             return true;
         } catch (e) {
             console.warn("Error on delete vault: ", e);
@@ -352,11 +353,11 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         return serializedGlobalSync;
     }, [currentProfile, currentVault]);
 
-    const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: Uint8Array<ArrayBufferLike>, icVaultData: ICVaultData): Promise<{ data: VaultData; vaultName: string }> => {
+    const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: string, icVaultData: ICVaultData): Promise<{ data: VaultData; vaultName: string }> => {
         if (!currentProfile) throw new Error("No profile set");
 
         const vetKD = await getVetKDDerivedKey();
-        const vaultKD = await deriveSignatureFromPublicKey(Principal.fromUint8Array(vaultIcpPublicAddress).toString(), currentProfile.identity);
+        const vaultKD = await deriveSignatureFromPublicKey(vaultIcpPublicAddress, currentProfile.identity);
         const fnKD = await deriveFinalKey(vaultKD, vetKD);
 
         const flexible_grid_columns = await decrypt_and_adapt_columns(icVaultData.spreadsheet_columns, fnKD);
@@ -378,10 +379,11 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         if (!currentProfile) throw new Error("No profile set");
 
         const api = await getSharedVaultCanisterAPI();
-        const response = await api.get_vault(currentProfile.principal.toString(), vaultIcpPublicAddress);
+        const vaultPrincipal = Principal.fromText(vaultIcpPublicAddress);
+        const response = await api.get_user_vault(vaultPrincipal);
 
-        if (response?.length) {
-            return await decryptAndAdaptVaultData(vaultIcpPublicAddress, response[0]);
+        if (response) {
+            return await decryptAndAdaptVaultData(vaultIcpPublicAddress, response);
         }
         return null;
 
@@ -398,8 +400,9 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         if (allVaults.vaults.length > 0) {
             const allDecryptedVaultsData = [];
             for (let [principalVaultId, vaultData] of allVaults.vaults) {
-                const decryptedVaultData = await decryptAndAdaptVaultData(principalVaultId as Uint8Array<ArrayBufferLike>, vaultData);
-                allDecryptedVaultsData.push({ icpPublicAddress: principalVaultId, ...decryptedVaultData });
+                const principalStr = Principal.fromUint8Array(principalVaultId as Uint8Array<ArrayBufferLike>).toString();
+                const decryptedVaultData = await decryptAndAdaptVaultData(principalStr, vaultData);
+                allDecryptedVaultsData.push({ icpPublicAddress: principalStr, ...decryptedVaultData });
             }
             return allDecryptedVaultsData;
         }
