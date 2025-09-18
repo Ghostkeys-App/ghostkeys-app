@@ -20,6 +20,7 @@ import { Principal } from "@dfinity/principal";
 import {
     VaultData,
     Vault,
+    ICVaultDataGlobalSync,
     WebsiteLoginEntry,
     WebsiteLogin,
     FlexGridDataKey,
@@ -27,7 +28,7 @@ import {
 } from './types.ts'
 
 import { SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
-import { decrypt_and_adapt_columns, decrypt_and_adapt_spreadsheet } from "./spreadsheet.ts";
+import { decrypt_and_adapt_columns, decrypt_and_adapt_spreadsheet, encryptAndSerializeSpreadsheetColumn } from "./spreadsheet.ts";
 import { decrypt_and_adapt_notes } from "./secure_notes.ts";
 import { decrypt_and_adapt_logins } from "./logins.ts";
 import WebsiteLogins from "../../pages/website-logins/WebsiteLogins.tsx";
@@ -333,7 +334,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         });
     }, [currentProfile, currentVault]);
 
-    const prepareEncryptedVaultPayload = useCallback(async (vault: Vault): Promise<ICVaultData> => {
+    const prepareEncryptedVaultPayload = useCallback(async (vault: Vault): Promise<ICVaultDataGlobalSync> => {
         if (!currentProfile) throw new Error("No profile set");
 
         const vetKD = await getVetKDDerivedKey();
@@ -341,13 +342,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const fnKD = await deriveFinalKey(vaultKD, vetKD);
         const encryptedVaultName: string = await aesEncrypt(vault.vaultName, fnKD);
 
-        const flexible_grid_columns: Array<[string, [number, boolean]]> =
-            await Promise.all(vault.data.flexible_grid_columns.map(async (c) => {
-                const encryptedName = await aesEncrypt(c.name, fnKD);
-                const index = c.meta.index;
-                const hidden = !!c?.meta?.hidden;
-                return [encryptedName, [index >>> 0, hidden]];
-            }));
+        const serializedFlexGridColumns = await encryptAndSerializeSpreadsheetColumn(vault.data.flexible_grid_columns, fnKD);
 
         const secure_notes: Array<[string, string]> =
             await Promise.all(vault.data.secure_notes.map(async (n) => {

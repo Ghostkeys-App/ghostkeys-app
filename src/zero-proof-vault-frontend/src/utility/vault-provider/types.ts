@@ -47,3 +47,6 @@ export type Vault = {
     data: VaultData;
     existsOnIc: boolean
 };
+
+// IC Specific types
+export type ICVaultDataGlobalSync = Uint8Array; // has information of the whole current vault

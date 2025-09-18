@@ -7,16 +7,17 @@ import {
     ICGridColumnsArray,
     FlexibleGridColumn
 } from "./types"
-import { aesDecrypt } from "../crypto/encdcrpt";
+import { aesDecrypt, aesEncrypt } from "../crypto/encdcrpt";
+import { FlexGridColumns, serializeSpreadsheetColumns } from "@ghostkeys/ghostkeys-sdk";
 
 export async function decrypt_and_adapt_spreadsheet(spreadsheet: Spreadsheet, fnKD: Uint8Array<ArrayBufferLike>) {
-    const flexible_grid_cells : FlexibleGridCell[] = (
+    const flexible_grid_cells: FlexibleGridCell[] = (
         await Promise.all(spreadsheet.columns.map(async ([x, column]) => {
             return await Promise.all(column.rows.map(async ([y, cell]) => {
                 const str_val = Buffer.from(cell).toString();
                 const value = await aesDecrypt(str_val, fnKD);
-                
-                return { key: { col : x, row: y }, value};
+
+                return { key: { col: x, row: y }, value };
             }))
         }))
     ).flat();
@@ -26,12 +27,24 @@ export async function decrypt_and_adapt_spreadsheet(spreadsheet: Spreadsheet, fn
 
 export async function decrypt_and_adapt_columns(columns: ICGridColumns, fnKD: Uint8Array<ArrayBufferLike>) {
     let columns_array: ICGridColumnsArray = Object.entries(columns) as ICGridColumnsArray;
-    const flexible_grid_columns : FlexibleGridColumn[] = (
+    const flexible_grid_columns: FlexibleGridColumn[] = (
         await Promise.all(columns_array.map(async ([index, column]) => {
             let name = await aesDecrypt(Buffer.from(column[0]).toString(), fnKD);
-            let hidden : boolean = column[1];
-            return { name, meta: { index, hidden }};
+            let hidden: boolean = column[1];
+            return { name, meta: { index, hidden } };
         }))
     )
     return flexible_grid_columns;
+}
+
+export async function encryptAndSerializeSpreadsheetColumn(gridColumns: FlexibleGridColumn[], fnKD: Uint8Array): Promise<Uint8Array<ArrayBufferLike>> {
+    const flexGridColumnsBeforeSer: FlexGridColumns = {};
+    for (const entry of gridColumns) {
+        const encryptedName = await aesEncrypt(entry.name, fnKD);
+        const index = entry.meta.index;
+        const hidden = !!entry?.meta?.hidden;
+        flexGridColumnsBeforeSer[index] = { name: encryptedName, hidden };
+    }
+    const serializedCL = serializeSpreadsheetColumns(flexGridColumnsBeforeSer);
+    return serializedCL;
 }
