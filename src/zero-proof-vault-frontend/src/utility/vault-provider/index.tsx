@@ -27,10 +27,10 @@ import {
     ICGridColumns
 } from './types.ts'
 
-import { SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
-import { decrypt_and_adapt_columns, decrypt_and_adapt_spreadsheet, encryptAndSerializeSpreadsheetColumn } from "./spreadsheet.ts";
-import { decrypt_and_adapt_notes } from "./secure_notes.ts";
-import { decrypt_and_adapt_logins } from "./logins.ts";
+import { serializeGlobalSync, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
+import { decrypt_and_adapt_columns, decrypt_and_adapt_spreadsheet, encryptAndSerializeSpreadsheetColumn, encryptSpreadsheet } from "./spreadsheet.ts";
+import { decrypt_and_adapt_notes, encryptAndSerializeSecureNotes, encryptSecureNotes } from "./secure_notes.ts";
+import { decrypt_and_adapt_logins, encryptWebsiteLoginsAndMetadata } from "./logins.ts";
 import WebsiteLogins from "../../pages/website-logins/WebsiteLogins.tsx";
 
 export const DB_NAME_VAULTS = "Ghostkeys-persistent-vaults";
@@ -342,39 +342,12 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const fnKD = await deriveFinalKey(vaultKD, vetKD);
         const encryptedVaultName: string = await aesEncrypt(vault.vaultName, fnKD);
 
-        const serializedFlexGridColumns = await encryptAndSerializeSpreadsheetColumn(vault.data.flexible_grid_columns, fnKD);
-
-        const secure_notes: Array<[string, string]> =
-            await Promise.all(vault.data.secure_notes.map(async (n) => {
-                const encryptedName = await aesEncrypt(n.name, fnKD);
-                const encryptedContent = await aesEncrypt(n.content, fnKD);
-                return [encryptedName, encryptedContent]
-            }));
-
-        const flexible_grid: Array<[FlexGridDataKey, string]> =
-            await Promise.all(vault.data.flexible_grid.map(async (cell) => {
-                const encryptedName = await aesEncrypt(cell.value, fnKD);
-                return [
-                    { col: cell.key.col, row: cell.key.row },
-                    encryptedName,
-                ]
-            }));
-
-        const website_logins: Array<[string, Array<[string, string]>]> =
-            await Promise.all((vault.data.website_logins ?? []).map(async (site) => {
-                const encryptedName = await aesEncrypt(site.name, fnKD);
-                const encryptedEntries = await Promise.all(site.entries.map(async (e) => {
-                    const [encLogin, encPassword] = await Promise.all([
-                        aesEncrypt(e.login, fnKD),
-                        aesEncrypt(e.password, fnKD),
-                    ]);
-                    return [encLogin, encPassword];
-                }));
-
-                return [encryptedName, encryptedEntries] as [string, Array<[string, string]>];
-            }));
-
-        return { flexible_grid_columns, secure_notes, flexible_grid, website_logins, vault_name: encryptedVaultName };
+        const encSp = await encryptSpreadsheet(vault.data.flexible_grid, fnKD);
+        const encSn = await encryptSecureNotes(vault.data.secure_notes, fnKD);
+        const {meta, logins} = await encryptWebsiteLoginsAndMetadata(vault.data.website_logins, fnKD);
+        const serializedGlobalSync = serializeGlobalSync(encSp, encSn, meta, logins);
+        // add sp column to global sync
+        return serializedGlobalSync;
     }, [currentProfile, currentVault]);
 
     const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: string, spreadsheet: ICSpreadsheet, spreadsheet_colums: ICGridColumns[], notes: ICNotes, logins: ICLogins, vault_name: string): Promise<{ data: VaultData; vaultName: string }> => {

@@ -1,3 +1,5 @@
+import { LoginsMetadataMap, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
+
 export type WebsiteLogin = {
     name: string;
     entries: WebsiteLoginEntry[];
@@ -50,3 +52,7 @@ export type Vault = {
 
 // IC Specific types
 export type ICVaultDataGlobalSync = Uint8Array; // has information of the whole current vault
+
+// SDK types
+export type EnctypedWebsiteLoginsObj = { meta: LoginsMetadataMap, logins: SpreadsheetMap };
+export type SerializedWebsiteLoginsObj = {meta: Uint8Array<ArrayBufferLike>, logins: Uint8Array<ArrayBufferLike>};

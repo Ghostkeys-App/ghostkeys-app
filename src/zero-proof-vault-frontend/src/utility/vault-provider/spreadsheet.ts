@@ -8,7 +8,7 @@ import {
     FlexibleGridColumn
 } from "./types"
 import { aesDecrypt, aesEncrypt } from "../crypto/encdcrpt";
-import { FlexGridColumns, serializeSpreadsheetColumns } from "@ghostkeys/ghostkeys-sdk";
+import { FlexGridColumns, serializeSpreadsheet, serializeSpreadsheetColumns, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
 
 export async function decrypt_and_adapt_spreadsheet(spreadsheet: Spreadsheet, fnKD: Uint8Array<ArrayBufferLike>) {
     const flexible_grid_cells: FlexibleGridCell[] = (
@@ -37,7 +37,7 @@ export async function decrypt_and_adapt_columns(columns: ICGridColumns, fnKD: Ui
     return flexible_grid_columns;
 }
 
-export async function encryptAndSerializeSpreadsheetColumn(gridColumns: FlexibleGridColumn[], fnKD: Uint8Array): Promise<Uint8Array<ArrayBufferLike>> {
+export async function encryptSpreadsheetColumns(gridColumns: FlexibleGridColumn[], fnKD: Uint8Array): Promise<FlexGridColumns> {
     const flexGridColumnsBeforeSer: FlexGridColumns = {};
     for (const entry of gridColumns) {
         const encryptedName = await aesEncrypt(entry.name, fnKD);
@@ -45,6 +45,30 @@ export async function encryptAndSerializeSpreadsheetColumn(gridColumns: Flexible
         const hidden = !!entry?.meta?.hidden;
         flexGridColumnsBeforeSer[index] = { name: encryptedName, hidden };
     }
+    return flexGridColumnsBeforeSer;
+}
+
+export async function encryptAndSerializeSpreadsheetColumn(gridColumns: FlexibleGridColumn[], fnKD: Uint8Array): Promise<Uint8Array<ArrayBufferLike>> {
+    const flexGridColumnsBeforeSer = await encryptSpreadsheetColumns(gridColumns, fnKD);
     const serializedCL = serializeSpreadsheetColumns(flexGridColumnsBeforeSer);
     return serializedCL;
+}
+
+export async function encryptSpreadsheet(gridCells: FlexibleGridCell[], fnKD: Uint8Array): Promise<SpreadsheetMap> {
+    const flexGridBeforeSer: SpreadsheetMap = {};
+    let tempFlexCell: { [y: number]: string } = {};
+    for (const entry of gridCells) {
+        const encryptedName = await aesEncrypt(entry.value, fnKD);
+        const index = entry.key.col;
+        tempFlexCell[entry.key.row] = encryptedName;
+        flexGridBeforeSer[index] = tempFlexCell;
+        tempFlexCell = {};
+    }
+    return flexGridBeforeSer;
+}
+
+export async function encryptAndSerializeSpreadsheet(gridCells: FlexibleGridCell[], fnKD: Uint8Array): Promise<Uint8Array<ArrayBufferLike>> {
+    const flexGridBeforeSer = await encryptSpreadsheet(gridCells, fnKD);
+    const serializedS = serializeSpreadsheet(flexGridBeforeSer);
+    return serializedS;
 }
