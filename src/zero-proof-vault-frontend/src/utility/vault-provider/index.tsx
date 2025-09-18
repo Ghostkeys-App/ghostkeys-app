@@ -26,7 +26,8 @@ import {
     WebsiteLogin,
     FlexGridDataKey,
     ICGridColumns,
-    VaultData
+    VaultData,
+    serializeVaultNames
 } from './types.ts'
 
 import { serializeGlobalSync, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
@@ -446,7 +447,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
 
         // lmao need to add vault name changer thingy to track changes across IDB, now commiting all
         const vaultNamesForSync = vaults.map((v) => { return { vault_id: Principal.from(v.icpPublicAddress).toUint8Array(), vault_name: v.vaultName } });
-        const serializedData = serializeVaultNames(vaultNamesForSync); //fn doesn't exists yet, but I PROMISE it's in SDK
+        const serializedData = serializeVaultNames(vaultNamesForSync); 
         await api.vault_names_sync(serializedData);
         await setCurrentVaultSyncStatusIdb(true, true);
         setVaults((prevState) => prevState.map((v) => v.vaultID == currentVaultId ? { ...currentVault, synced: true, existsOnIc: true } : v));
