@@ -1,7 +1,8 @@
 import React, {useMemo} from "react";
 import funnyGhostIcon from "../../../public/funny-ghost.svg";
 import GKFormModal from "../../components/modals/gk-form-modal/GKFormModal.tsx";
-import {SecurityNote, useVaultProviderActions, useVaultProviderState} from "../../utility/vault-provider";
+import {SecurityNote} from "../../utility/vault-provider/types.ts";
+import {useVaultProviderActions, useVaultProviderState} from "../../utility/vault-provider";
 import {toast} from "../../utility/toast";
 import {copyToClipboard} from "../../utility/clipboard";
 
@@ -35,7 +36,7 @@ export default function SecurityNotes(): JSX.Element {
 
   async function onAddSecurityNote(values: { title: string; body: string }) {
     if (!currentVault) {return}
-    const newSecurityNote: SecurityNote = {name: values.title, content: values.body};
+    const newSecurityNote: SecurityNote = {name: values.title, content: values.body, x: editingNoteId || currentVault.data.secure_notes.length + 1};
     await saveCurrentVaultDataToIDB({...currentVault.data, secure_notes: [newSecurityNote, ...currentVault.data.secure_notes]});
     setOpenAddNote(false);
     toast.success('Successfully added the note');
@@ -44,7 +45,7 @@ export default function SecurityNotes(): JSX.Element {
   async function onEditSecurityNote(values: { title: string; body: string }) {
     if (!currentVault) return;
     if (editingNoteId === null) return;
-    const updatedSecurityNote: SecurityNote = {name: values.title, content: values.body};
+    const updatedSecurityNote: SecurityNote = {name: values.title, content: values.body, x: editingNoteId};
     const updatedSecurityNotes: SecurityNote[] = filteredSecurityNotes.map((sn, i) => i == editingNoteId ? updatedSecurityNote : sn);
 
     await saveCurrentVaultDataToIDB({...currentVault.data, secure_notes: updatedSecurityNotes});

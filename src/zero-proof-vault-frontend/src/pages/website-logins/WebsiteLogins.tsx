@@ -6,9 +6,11 @@ import AddSiteModal from "./AddSiteModal.tsx";
 import {
   useVaultProviderActions,
   useVaultProviderState,
+} from "../../utility/vault-provider"
+import {
   WebsiteLogin,
   WebsiteLoginEntry
-} from "../../utility/vault-provider";
+} from "../../utility/vault-provider/types.ts";
 import { exportJson, IconButton, siteIconFor } from "./helpers.tsx";
 import { toast } from "../../utility/toast";
 import { copyToClipboard } from "../../utility/clipboard";

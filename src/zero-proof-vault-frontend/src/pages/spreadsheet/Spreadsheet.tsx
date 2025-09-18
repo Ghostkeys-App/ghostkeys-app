@@ -1,5 +1,6 @@
 import React, {useMemo} from "react";
-import {useVaultProviderActions, useVaultProviderState, VaultData} from "../../utility/vault-provider";
+import {useVaultProviderActions, useVaultProviderState} from "../../utility/vault-provider";
+import {VaultData} from "../../utility/vault-provider/types.ts";
 import {
   clamp,
   colName,
