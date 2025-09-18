@@ -7,9 +7,10 @@ type ModalProps = {
   description?: string;
   width?: "sm" | "md" | "lg";
   onClose: () => void;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   actions?: React.ReactNode; // buttons in the footer
   initialFocusSelector?: string; // e.g. 'input, textarea, button'
+  hideHeader?: boolean; // allow headerless minimal modals
 };
 
 export default function GKModal({
@@ -21,6 +22,7 @@ export default function GKModal({
                                   children,
                                   actions,
                                   initialFocusSelector = "input, textarea, button, [tabindex]:not([tabindex='-1'])",
+                                  hideHeader = false,
                                 }: ModalProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const dialogRef = React.useRef<HTMLDivElement>(null);
@@ -110,7 +112,7 @@ export default function GKModal({
   };
 
   if (!open || !containerRef.current) return null;
-
+  const hasBody = children ?? React.Children.count(children) > 0;
   return createPortal(
       <div
           className="gk-modal-overlay"
@@ -135,19 +137,16 @@ export default function GKModal({
             // onMouseLeave={onMouseLeave}
         >
           <div className="gk-modal-glow" aria-hidden="true" />
-          <header className="gk-modal-header">
-            <h2 id="gk-modal-title">{title}</h2>
-            {description && <p id="gk-modal-desc">{description}</p>}
-            <button
-                className="gk-modal-close"
-                aria-label="Close"
-                onClick={onClose}
-            >
-              <span aria-hidden="true">×</span>
-            </button>
-          </header>
+          {!hideHeader && (
+            <header className="gk-modal-header minimal">
+              <h2 id="gk-modal-title">{title}</h2>
+              {description && <p id="gk-modal-desc">{description}</p>}
+            </header>
+          )}
 
-          <div className="gk-modal-body">{children}</div>
+          {hasBody && (
+            <div className="gk-modal-body">{children}</div>
+          )}
 
           {actions && <footer className="gk-modal-actions">{actions}</footer>}
         </div>

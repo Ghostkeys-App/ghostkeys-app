@@ -13,7 +13,8 @@
   },
   "type": "module",
   "workspaces": [
-    "src/zero-proof-vault-frontend"
+    "src/zero-proof-vault-frontend",
+    "src/zero-proof-partner-iframe"
   ],
   "dependencies": {
     "noble": "^1.9.1"

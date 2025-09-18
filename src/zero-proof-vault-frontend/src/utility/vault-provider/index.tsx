@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Loader from "../loader/Loader.tsx";
-import { useIdentitySystem } from "../identity";
+import { useIdentitySystem, UserProfile } from "../identity";
 import {
     aesDecrypt,
     aesEncrypt,
@@ -82,6 +82,8 @@ export type Actions = {
     getAllICVaults(userPrincipalId: string): Promise<Array<{ data: VaultData; vaultName: string; icpPublicAddress: string; }> | null>
     validateAndImportIdentityWithVaultFromSeed(potentialUserSeed: string): Promise<boolean>;
     deleteVaultFromIC(vaultPublicAddress: string): Promise<boolean>;
+
+    logOut(): Promise<void>;
 }
 
 const VaultStateContext = createContext<State | null>(null);
@@ -89,7 +91,7 @@ const VaultActionsContext = createContext<Actions | null>(null);
 
 export function VaultContextProvider({ children }: { children: ReactNode }) {
     const db = useRef<IDBDatabase | null>(null);
-    const { currentProfile, switchProfile, createProfileFromSeed } = useIdentitySystem();
+    const { currentProfile, switchProfile, createProfileFromSeed, eraceIdentities, markProfileCommited } = useIdentitySystem();
     const { getSharedVaultCanisterAPI, getVetKDDerivedKey, userExistsWithVetKD } = useAPIContext();
 
     const [isReady, setIsReady] = useState(false);
@@ -511,8 +513,12 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const existingProfile = await createProfileFromSeed(potentialUserSeed);
         const userExists = await userExistsWithVetKD(existingProfile.principal.toString());
         if (userExists) {
-            await dropPersistanceStorageForAllVaults();
-            await switchProfile(existingProfile);
+            try {
+                await dropPersistanceStorageForAllVaults();
+                await switchProfile(existingProfile);
+            } catch (e) {
+                console.log("Error in from dropping IDB for vaults or profile switching", e);
+            }
             setIsSeedPhraseImport(true);
             return true;
         } else return false;
@@ -527,8 +533,13 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         await api.add_or_update_vault(currentProfile.principal.toString(), currentVault.icpPublicAddress, payload);
         await setCurrentVaultSyncStatusIdb(true, true);
         setVaults((prevState) => prevState.map((v) => v.vaultID == currentVaultId ? { ...currentVault, synced: true, existsOnIc: true } : v));
-
+        await markProfileCommited(currentProfile);
     }, [currentProfile, currentVault, getSharedVaultCanisterAPI]);
+
+    const logOut = useCallback(async (): Promise<void> => {
+        await dropPersistanceStorageForAllVaults();
+        await eraceIdentities();
+    }, []);
 
     const state = useMemo<State>(
         () => ({ vaults, syncedWithStable, currentVault, currentVaultId }),
@@ -536,8 +547,8 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     );
 
     const actions = useMemo<Actions>(
-        () => ({ createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC }),
-        [createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC]
+        () => ({ createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC, logOut }),
+        [createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC, logOut]
     );
 
     if (!isReady) return <Loader />;
