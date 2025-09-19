@@ -33,12 +33,12 @@ export default function WebsiteLogins(): JSX.Element {
 
   // Derived values
   const websiteLogins: WebsiteLogin[] = useMemo(
-    () => currentVault?.data.website_logins || [],
+    () => currentVault?.data?.website_logins || [],
     [currentVault]
   );
 
   const filteredWebsiteLogins: WebsiteLogin[] = React.useMemo(() => {
-    const all = currentVault?.data.website_logins || [];
+    const all = currentVault?.data?.website_logins || [];
     const needle = q.trim().toLowerCase();
     if (!needle) return all;
     return all.filter((s) =>

@@ -348,10 +348,22 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const fnKD = await deriveFinalKey(vaultKD, vetKD);
         const encryptedVaultName: string = await aesEncrypt(vault.vaultName, fnKD);
 
+        console.log('idb spreadsheet data: ', vault.data.flexible_grid);
         const encSp = await encryptSpreadsheet(vault.data.flexible_grid, fnKD);
+        console.log('encrypted spreadsheet data: ', encSp);
+
+        console.log('idb spreadsheet columns: ', vault.data.flexible_grid_columns);
         const encSpC = await encryptSpreadsheetColumns(vault.data.flexible_grid_columns, fnKD);
+        console.log('encrypted spreadsheet columns: ', encSpC);
+
+        console.log('idb notes: ', vault.data.secure_notes);
         const encSn = await encryptSecureNotes(vault.data.secure_notes, fnKD);
+        console.log('encrypted notes: ', encSn);
+
+        console.log('idb logins: ', vault.data.website_logins);
         const { meta, logins } = await encryptWebsiteLoginsAndMetadata(vault.data.website_logins, fnKD);
+        console.log('encrypted logins: ', meta, logins);
+
         const serializedGlobalSync = serializeGlobalSync(encSp, encSpC, encSn, meta, logins);
         return serializedGlobalSync;
     }, [currentProfile, currentVault]);

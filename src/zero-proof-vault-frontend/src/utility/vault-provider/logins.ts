@@ -49,7 +49,7 @@ export async function encryptWebsiteLoginsAndMetadata(loginsData: WebsiteLogin[]
         loginsCells[i] = tempFlexCell;
         tempFlexCell = {};
     }
-    return { meta: loginsMeta, logins: loginsData };
+    return { meta: loginsMeta, logins: loginsCells };
 }
 
 export async function encryptAndSerializeWebsiteLoginsAndMetadata(loginsData: WebsiteLogin[], fnKD: Uint8Array): Promise<SerializedWebsiteLoginsObj> {
