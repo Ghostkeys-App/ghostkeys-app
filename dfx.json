@@ -25,6 +25,13 @@
       ],
       "type": "assets",
       "workspace": "zero-proof-vault-frontend"
+    },
+    "zero-proof-partner-iframe": {
+      "type": "assets",
+      "source": [
+        "src/zero-proof-partner-iframe/dist"
+      ],
+      "workspace": "zero-proof-partner-iframe"
     }
   },
   "defaults": {

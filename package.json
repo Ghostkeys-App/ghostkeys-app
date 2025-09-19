@@ -13,7 +13,8 @@
   },
   "type": "module",
   "workspaces": [
-    "src/zero-proof-vault-frontend"
+    "src/zero-proof-vault-frontend",
+    "src/zero-proof-partner-iframe"
   ],
   "dependencies": {
     "@ghostkeys/ghostkeys-sdk": "^1.1.4",
