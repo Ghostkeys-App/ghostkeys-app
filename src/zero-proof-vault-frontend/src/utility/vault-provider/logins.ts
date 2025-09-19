@@ -20,7 +20,7 @@ export async function decrypt_and_adapt_logins(logins: Logins, fnKD: Uint8Array<
         for (const [loginEntryIndex, userPassCell] of loginColumn.rows) {
             const userPassStr = Buffer.from(userPassCell).toString();
             const userPassDecrpt = await aesDecrypt(userPassStr, fnKD);
-            const breakIndex = parseInt(userPassDecrpt[0]);
+            const breakIndex = parseInt(userPassDecrpt[0]) + 1;
             const user = userPassDecrpt.slice(1, breakIndex);
             const pass = userPassDecrpt.slice(breakIndex);
             entries[loginEntryIndex] = { login: user, password: pass };
