@@ -20,9 +20,12 @@ export async function decrypt_and_adapt_logins(logins: Logins, fnKD: Uint8Array<
         for (const [loginEntryIndex, userPassCell] of loginColumn.rows) {
             const userPassStr = Buffer.from(userPassCell).toString();
             const userPassDecrpt = await aesDecrypt(userPassStr, fnKD);
-            const breakIndex = parseInt(userPassDecrpt[0]) + 1;
-            const user = userPassDecrpt.slice(1, breakIndex);
-            const pass = userPassDecrpt.slice(breakIndex);
+            const sep = userPassDecrpt.indexOf(':');
+            if (sep === -1) throw new Error('Malformed login entry');
+            const userLen = Number(userPassDecrpt.slice(0, sep));
+            const valueStart = sep + 1;
+            const user = userPassDecrpt.slice(valueStart, valueStart + userLen);
+            const pass = userPassDecrpt.slice(valueStart + userLen);
             entries[loginEntryIndex] = { login: user, password: pass };
         }
         website_logins[loginIndex] = { name: labelDcrp, entries };
@@ -30,7 +33,8 @@ export async function decrypt_and_adapt_logins(logins: Logins, fnKD: Uint8Array<
     return website_logins;
 }
 
-export const concatUserPass = (user: string, pass: string): string => `${user.length}${user}${pass}`;
+export const concatUserPass = (user: string, pass: string): string => `${user.length}:${user}${pass}`;
+
 
 export async function encryptWebsiteLoginsAndMetadata(loginsData: WebsiteLogin[], fnKD: Uint8Array): Promise<EnctypedWebsiteLoginsObj> {
     const loginsMeta: LoginsMetadataMap = {};
