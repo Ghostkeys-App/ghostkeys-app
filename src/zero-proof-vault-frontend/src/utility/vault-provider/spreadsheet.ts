@@ -53,13 +53,12 @@ export async function encryptAndSerializeSpreadsheetColumn(gridColumns: Flexible
 
 export async function encryptSpreadsheet(gridCells: FlexibleGridCell[], fnKD: Uint8Array): Promise<SpreadsheetMap> {
     const flexGridBeforeSer: SpreadsheetMap = {};
-    let tempFlexCell: { [y: number]: string } = {};
     for (const entry of gridCells) {
         const encryptedName = await aesEncrypt(entry.value, fnKD);
-        const index = entry.key.col;
-        tempFlexCell[entry.key.row] = encryptedName;
-        flexGridBeforeSer[index] = tempFlexCell;
-        tempFlexCell = {};
+        if (!flexGridBeforeSer[entry.key.col]) {
+            flexGridBeforeSer[entry.key.col] = {}
+        }
+        flexGridBeforeSer[entry.key.col][entry.key.row] = encryptedName;
     }
     return flexGridBeforeSer;
 }
