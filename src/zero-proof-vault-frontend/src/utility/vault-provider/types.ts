@@ -51,7 +51,7 @@ export type Vault = {
 };
 
 // IC Specific types
-export type ICVaultDataGlobalSync = Uint8Array; // has information of the whole current vault
+export type ICVaultDataGlobalSync = {name: string, data: Uint8Array}; // has information of the whole current vault
 
 // SDK types
 export type EnctypedWebsiteLoginsObj = { meta: LoginsMetadataMap, logins: SpreadsheetMap };

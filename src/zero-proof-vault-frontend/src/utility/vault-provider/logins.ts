@@ -1,4 +1,3 @@
-import { X } from "lucide-react";
 import {
     Logins
 } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
@@ -9,6 +8,7 @@ import {
     WebsiteLoginEntry
 } from "./types"
 import { aesDecrypt, aesEncrypt } from "../crypto/encdcrpt";
+import { Buffer } from "buffer";
 import { LoginsMetadataMap, serializeLoginsMetadata, serializeSpreadsheet, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
 
 export async function decrypt_and_adapt_logins(logins: Logins, fnKD: Uint8Array<ArrayBufferLike>): Promise<WebsiteLogin[]> {
@@ -23,9 +23,9 @@ export async function decrypt_and_adapt_logins(logins: Logins, fnKD: Uint8Array<
             const breakIndex = parseInt(userPassDecrpt[0]);
             const user = userPassDecrpt.slice(1, breakIndex);
             const pass = userPassDecrpt.slice(breakIndex);
-            entries[loginEntryIndex] = {login: user, password: pass};
+            entries[loginEntryIndex] = { login: user, password: pass };
         }
-        website_logins[loginIndex] = {name: labelDcrp, entries};
+        website_logins[loginIndex] = { name: labelDcrp, entries };
     }
     return website_logins;
 }

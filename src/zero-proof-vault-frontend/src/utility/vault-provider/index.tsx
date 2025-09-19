@@ -34,7 +34,7 @@ import { serializeGlobalSync, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
 import { decrypt_and_adapt_columns, decrypt_and_adapt_spreadsheet, encryptAndSerializeSpreadsheetColumn, encryptSpreadsheet, encryptSpreadsheetColumns } from "./spreadsheet.ts";
 import { decrypt_and_adapt_notes, encryptAndSerializeSecureNotes, encryptSecureNotes } from "./secure_notes.ts";
 import { decrypt_and_adapt_logins, encryptWebsiteLoginsAndMetadata } from "./logins.ts";
-import WebsiteLogins from "../../pages/website-logins/WebsiteLogins.tsx";
+import { Buffer } from "buffer";
 
 export const DB_NAME_VAULTS = "Ghostkeys-persistent-vaults";
 export const DB_VERSION_VAULTS = 1;
@@ -134,10 +134,13 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
             req.onsuccess = () => res(req.result as Vault[]);
             req.onerror = () => rej("Failed to list vaults");
         });
+        console.log("allVaults", allVaults);
         // Try getting from IC
         if (allVaults.length === 0) {
             const userExists = await userExistsWithVetKD(currentProfile.principal.toString());
+            console.log('userExists', userExists);
             const icUserVaults = userExists ? await getAllICVaults(currentProfile.principal) : null;
+            console.log('icUserVaults', icUserVaults);
             if (icUserVaults === null) {
                 // No vaults returned per existing user --> create new one and store in index DB
                 if (!currentProfile) throw new Error("No profile set");
@@ -365,7 +368,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         console.log('encrypted logins: ', meta, logins);
 
         const serializedGlobalSync = serializeGlobalSync(encSp, encSpC, encSn, meta, logins);
-        return serializedGlobalSync;
+        return { name: encryptedVaultName, data: serializedGlobalSync };
     }, [currentProfile, currentVault]);
 
     const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: string, icVaultData: ICVaultData): Promise<{ data: VaultData; vaultName: string }> => {
@@ -376,12 +379,17 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const fnKD = await deriveFinalKey(vaultKD, vetKD);
 
         const flexible_grid_columns = await decrypt_and_adapt_columns(icVaultData.spreadsheet_columns, fnKD);
+        console.log('flexible_grid_columns', flexible_grid_columns);
         const flexible_grid = await decrypt_and_adapt_spreadsheet(icVaultData.spreadsheet, fnKD);
+        console.log('flexible_grid', flexible_grid);
 
         const secure_notes = await decrypt_and_adapt_notes(icVaultData.notes, fnKD);
+        console.log('secure_notes', secure_notes);
         const website_logins = await decrypt_and_adapt_logins(icVaultData.logins, fnKD);
+        console.log('website_logins', website_logins);
 
         const vaultNameStr = Buffer.from(icVaultData.vault_name).toString();
+        console.log('vaultNameStr', vaultNameStr);
         const vaultName = await aesDecrypt(vaultNameStr, fnKD);
 
         return {
@@ -412,6 +420,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         if (!currentProfile) throw new Error("No profile set");
         const api = await getSharedVaultCanisterAPI();
         const allVaults = await api.get_all_user_vaults(userPrincipalId ?? currentProfile.principal);
+        console.log('allvaults', allVaults);
         if (allVaults.vaults.length > 0) {
             const allDecryptedVaultsData = [];
             for (let [principalVaultId, vaultData] of allVaults.vaults) {
@@ -459,13 +468,13 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         if (!currentProfile) throw new Error("No profile set");
         if (!currentVault) throw new Error("No current vault set");
 
-        const payload = await prepareEncryptedVaultPayload(currentVault);
+        const { name, data } = await prepareEncryptedVaultPayload(currentVault);
         const api = await getSharedVaultCanisterAPI();
-        await api.global_sync(Principal.fromText(currentVault.icpPublicAddress), payload); //add Principal directly to current vault state
+        await api.global_sync(Principal.fromText(currentVault.icpPublicAddress), data); //add Principal directly to current vault state
 
         // lmao need to add vault name changer thingy to track changes across IDB, now commiting all
-        const vaultNamesForSync = vaults.map((v) => { return { vault_id: Principal.from(v.icpPublicAddress).toUint8Array(), vault_name: v.vaultName } });
-        const serializedData = serializeVaultNames(vaultNamesForSync); 
+        const vaultNamesForSync = [{ vault_id: Principal.from(currentVault.icpPublicAddress).toUint8Array(), vault_name: name }]
+        const serializedData = serializeVaultNames(vaultNamesForSync);
         await api.vault_names_sync(serializedData);
         await setCurrentVaultSyncStatusIdb(true, true);
         setVaults((prevState) => prevState.map((v) => v.vaultID == currentVaultId ? { ...currentVault, synced: true, existsOnIc: true } : v));

@@ -7,6 +7,7 @@ import {
     FlexibleGridColumn,
     FlexGridDataKey
 } from "./types"
+import { Buffer } from "buffer";
 import { aesDecrypt, aesEncrypt } from "../crypto/encdcrpt";
 import { FlexGridColumns, serializeSpreadsheet, serializeSpreadsheetColumns, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
 

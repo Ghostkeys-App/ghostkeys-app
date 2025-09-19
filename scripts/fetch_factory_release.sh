@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Allow override: export FACTORY_RELEASE_TAG=my-tag before running dfx build
-TAG="${FACTORY_RELEASE_TAG:-factory-canister-dev-v0.9.0}"
+TAG="${FACTORY_RELEASE_TAG:-factory-canister-dev-v0.9.2}"
 BASE="https://github.com/Ghostkeys-App/factory-canister/releases/download/${TAG}"
 
 WASM_DIR=".dfx/canisters/factory_canister_backend"
