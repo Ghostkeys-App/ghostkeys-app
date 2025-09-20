@@ -38,6 +38,7 @@ export type IdentityContextType = {
   markProfileCommited: (profile: UserProfile) => Promise<void>;
   removeProfile: (userID: string) => Promise<void>;
   addEmptyProfile: () => Promise<void>;
+  switchToUncommited: (idbProfile: indexDBProfile) => Promise<void>;
 };
 
 export type indexDBProfile = {
@@ -275,6 +276,16 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     setProfiles([...profiles, idbLikeProfile]);
   }, [profiles]);
 
+  const switchToUncommited = useCallback(async (idbProfile: indexDBProfile): Promise<void> => {
+    const stateProfile = await createProfileFromSeed(idbProfile.seedPhrase);
+    // const currentIDBProfile = profiles.find(p => p.seedPhrase == currentProfile.seedPhrase);
+    // currentIDBProfile!.active = false;
+    // await upsertProfile(currentIDBProfile!);
+    await upsertProfile({ ...idbProfile, active: true });
+    await setActiveProfileById(idbProfile.userID);
+    setCurrentProfile(stateProfile);
+  }, [currentProfile, profiles])
+
   const contextValue: IdentityContextType = {
     currentProfile,
     profiles,
@@ -285,7 +296,8 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     eraceIdentities,
     markProfileCommited,
     removeProfile,
-    addEmptyProfile
+    addEmptyProfile,
+    switchToUncommited
   };
 
   if (!isReady) return <Loader />;

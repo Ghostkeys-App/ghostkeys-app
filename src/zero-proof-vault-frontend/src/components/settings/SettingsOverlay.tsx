@@ -24,7 +24,7 @@ function GeneralTab() {
 
 function ProfilesTab() {
   const { profiles, removeProfile, addEmptyProfile } = useIdentitySystem();
-  const { validateAndImportIdentityWithVaultFromSeed } = useVaultProviderActions();
+  const { validateAndImportIdentityWithVaultFromSeed, switchToUncommitedProfile } = useVaultProviderActions();
   const { currentVault } = useVaultProviderState();
 
   const [revealTarget, setRevealTarget] = useState<indexDBProfile | null>(null);
@@ -49,6 +49,17 @@ function ProfilesTab() {
 
   const doSwitchProfile = useCallback(async (profile: indexDBProfile) => {
     setSwitchBusy(true);
+    if (!profile.commited) {
+      try {
+        await switchToUncommitedProfile(profile);
+        toast.success("Successfully switched profile!", { idiotProof: true });
+      } catch (e) {
+        toast.error("Error on switching profile, check console!", { idiotProof: true });
+      }
+       setSwitchBusy(false);
+      setSwitchTarget(null);
+      return;
+    }
     try {
       const success = await validateAndImportIdentityWithVaultFromSeed(profile.seedPhrase);
       if (success) {
@@ -62,11 +73,11 @@ function ProfilesTab() {
       setSwitchBusy(false);
       setSwitchTarget(null);
     }
-  }, [validateAndImportIdentityWithVaultFromSeed]);
+  }, [validateAndImportIdentityWithVaultFromSeed, switchToUncommitedProfile]);
 
   const onSwitchClick = useCallback((profile: indexDBProfile) => {
-    if (profile.active || !profile.commited) {
-      toast.error("Profile is not saved, save before switching.");
+    if (profile.active) {
+      toast.error("Can't switch to active profile.");
       return;
     }
     if (currentVault && !currentVault.synced) {
@@ -129,8 +140,8 @@ function ProfilesTab() {
                 <div className="gk-profile-actions">
                   <button
                     type="button"
-                    className={`gk-btn ${profile.active || !profile.commited ? 'ghost' : 'primary'}`}
-                    disabled={profile.active || !profile.commited || switchBusy}
+                    className={`gk-btn ${profile.active ? 'ghost' : 'primary'}`}
+                    disabled={profile.active || switchBusy}
                     onClick={() => onSwitchClick(profile)}
                   >
                     {profile.active ? 'Active' : 'Switch'}

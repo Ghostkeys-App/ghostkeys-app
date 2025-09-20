@@ -17,7 +17,7 @@ export type ProfileMenuProps = {
 
 export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afterItems = [] }: ProfileMenuProps) {
   const { currentProfile, profiles } = useIdentitySystem();
-  const { validateAndImportIdentityWithVaultFromSeed, logOut } = useVaultProviderActions();
+  const { validateAndImportIdentityWithVaultFromSeed, logOut, switchToUncommitedProfile } = useVaultProviderActions();
   const { currentVault } = useVaultProviderState();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -25,7 +25,7 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const [submenuTop, setSubmenuTop] = useState<number>(0);
-  const [seedToSwitchPrompt, setSeedToSwitchPrompt] = useState<string>('');
+  const [profileToSwitchPrompt, setProfileToSwitchPrompt] = useState<indexDBProfile | null>(null);
   const [logOutOpen, setLogOutOpen] = useState(false);
 
   if (!containerRef.current && typeof document !== "undefined") {
@@ -70,9 +70,20 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
     setPos({ left, top });
   }, [anchorEl]);
 
-  const onSwitchProfileConfirm = useCallback(async (seed: string) => {
+  const onSwitchProfileConfirm = useCallback(async (profile: indexDBProfile | null) => {
+    if (profile === null) return;
+    if (!profile.commited) {
+      try {
+        await switchToUncommitedProfile(profile);
+        toast.success("Successfully switched profile!", { idiotProof: true });
+      } catch (e) {
+        toast.error("Error on switching profile, check console!", { idiotProof: true });
+      }
+      setSubmenuOpen(false);
+      return;
+    }
     try {
-      const result = await validateAndImportIdentityWithVaultFromSeed(seed);
+      const result = await validateAndImportIdentityWithVaultFromSeed(profile.seedPhrase);
       if (result) {
         toast.success("Successfully switched profile!", { idiotProof: true });
       } else {
@@ -85,17 +96,10 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
   }, [])
 
   const onSwitchClick = useCallback(async (profile: indexDBProfile) => {
-    // we can't switch to not synced profile
-    if (!profile.commited) {
-      toast.error("Profile you want to switch to is not saved to server. Navigate to Settings to save it.");
-      setSeedToSwitchPrompt("");
-      setSubmenuOpen(false);
-      return;
-    }
     if (!currentVault?.synced) {
-      setSeedToSwitchPrompt(profile.seedPhrase);
+      setProfileToSwitchPrompt(profile);
     } else {
-      await onSwitchProfileConfirm(profile.seedPhrase);
+      await onSwitchProfileConfirm(profile);
     }
   }, [currentVault, currentProfile]);
 
@@ -181,17 +185,17 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
         </div>
       </div>
       <GKModal
-        open={seedToSwitchPrompt != ''}
-        onClose={() => setSeedToSwitchPrompt('')}
+        open={profileToSwitchPrompt != null}
+        onClose={() => setProfileToSwitchPrompt(null)}
         title="Vault is not synced, do you still want to switch?"
         description="This will discard unsynced local changes and switch to the other profile."
         width="sm"
         actions={
           <>
-            <button className="gk-btn ghost" onClick={() => setSeedToSwitchPrompt('')}>Cancel</button>
+            <button className="gk-btn ghost" onClick={() => setProfileToSwitchPrompt(null)}>Cancel</button>
             <button
               className="gk-btn danger"
-              onClick={async () => { await onSwitchProfileConfirm(seedToSwitchPrompt); setSeedToSwitchPrompt('') }}
+              onClick={async () => { await onSwitchProfileConfirm(profileToSwitchPrompt); setProfileToSwitchPrompt(null) }}
             >
               Switch
             </button>

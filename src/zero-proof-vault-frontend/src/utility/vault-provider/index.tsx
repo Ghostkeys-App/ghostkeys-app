@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Loader from "../loader/Loader.tsx";
-import { useIdentitySystem } from "../identity";
+import { indexDBProfile, useIdentitySystem } from "../identity";
 import {
     aesDecrypt,
     aesEncrypt,
@@ -51,6 +51,7 @@ export type Actions = {
     deleteVaultFromIC(vaultPublicAddress: string): Promise<boolean>;
 
     logOut(): Promise<void>;
+    switchToUncommitedProfile(idbProfile: indexDBProfile): Promise<void>;
 }
 
 const VaultStateContext = createContext<State | null>(null);
@@ -58,7 +59,7 @@ const VaultActionsContext = createContext<Actions | null>(null);
 
 export function VaultContextProvider({ children }: { children: ReactNode }) {
     const db = useRef<IDBDatabase | null>(null);
-    const { currentProfile, switchProfile, createProfileFromSeed, eraceIdentities, markProfileCommited } = useIdentitySystem();
+    const { currentProfile, switchProfile, createProfileFromSeed, eraceIdentities, markProfileCommited, switchToUncommited } = useIdentitySystem();
     const { getSharedVaultCanisterAPI, getVetKDDerivedKey, userExistsWithVetKD } = useAPIContext();
 
     const [isReady, setIsReady] = useState(false);
@@ -476,14 +477,24 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         await eraceIdentities();
     }, []);
 
+    const switchToUncommitedProfile = useCallback(async (idbProfile: indexDBProfile) => {
+        try {
+            await dropPersistanceStorageForAllVaults();
+            await switchToUncommited(idbProfile);
+            setIsSeedPhraseImport(true);
+        } catch (e) {
+            console.log("Error in from dropping IDB for vaults or profile switching", e);
+        }
+    }, []);
+
     const state = useMemo<State>(
         () => ({ vaults, syncedWithStable, currentVault, currentVaultId }),
         [vaults, syncedWithStable, currentVault, currentVaultId]
     );
 
     const actions = useMemo<Actions>(
-        () => ({ createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC, logOut }),
-        [createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC, logOut]
+        () => ({ createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC, logOut, switchToUncommitedProfile }),
+        [createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC, logOut, switchToUncommitedProfile]
     );
 
     if (!isReady) return <Loader />;
