@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Loader from "../loader/Loader.tsx";
-import { useIdentitySystem, UserProfile } from "../identity";
+import { indexDBProfile, useIdentitySystem } from "../identity";
 import {
     aesDecrypt,
     aesEncrypt,
@@ -12,52 +12,19 @@ import { useAPIContext } from "../api/APIContext.tsx";
 import {
     VaultData as ICVaultData
 } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
+import { Principal } from "@dfinity/principal";
+import {
+    Vault,
+    ICVaultDataGlobalSync,
+    VaultData,
+    serializeVaultNames
+} from './types.ts'
 
-export type WebsiteLogin = {
-    name: string;
-    entries: WebsiteLoginEntry[];
-}
-
-export type WebsiteLoginEntry = {
-    login: string;
-    password: string;
-}
-
-export type SecurityNote = {
-    name: string;
-    content: string;
-}
-
-export type FlexibleGridCell = {
-    key: FlexGridDataKey;
-    value: string
-}
-
-export type FlexibleGridColumn = {
-    name: string;
-    meta: {
-        index: number;
-        hidden: boolean
-    };
-}
-
-export type FlexGridDataKey = { col: number; row: number };
-
-export type VaultData = {
-    flexible_grid_columns: FlexibleGridColumn[];
-    secure_notes: SecurityNote[];
-    flexible_grid: FlexibleGridCell[];
-    website_logins: WebsiteLogin[];
-};
-
-export type Vault = {
-    vaultID: string;
-    vaultName: string;
-    icpPublicAddress: string;
-    synced: boolean;
-    data: VaultData;
-    existsOnIc: boolean
-};
+import { serializeGlobalSync } from "@ghostkeys/ghostkeys-sdk";
+import { decrypt_and_adapt_columns, decrypt_and_adapt_spreadsheet, encryptSpreadsheet, encryptSpreadsheetColumns } from "./spreadsheet.ts";
+import { decrypt_and_adapt_notes, encryptSecureNotes } from "./secure_notes.ts";
+import { decrypt_and_adapt_logins, encryptWebsiteLoginsAndMetadata } from "./logins.ts";
+import { Buffer } from "buffer";
 
 export const DB_NAME_VAULTS = "Ghostkeys-persistent-vaults";
 export const DB_VERSION_VAULTS = 1;
@@ -79,11 +46,12 @@ export type Actions = {
     saveCurrentVaultDataToIDB(data: VaultData, syncedFromIC?: boolean, vaultName?: string): Promise<Vault>;
     syncCurrentVaultWithBackend(): Promise<void>;
     getICVault(vaultIcpPublicAddress: string): Promise<{ data: VaultData, vaultName: string } | null>;
-    getAllICVaults(userPrincipalId: string): Promise<Array<{ data: VaultData; vaultName: string; icpPublicAddress: string; }> | null>
+    getAllICVaults(userPrincipalId: Principal): Promise<Array<{ data: VaultData; vaultName: string; icpPublicAddress: string; }> | null>
     validateAndImportIdentityWithVaultFromSeed(potentialUserSeed: string): Promise<boolean>;
     deleteVaultFromIC(vaultPublicAddress: string): Promise<boolean>;
 
     logOut(): Promise<void>;
+    switchToUncommitedProfile(idbProfile: indexDBProfile): Promise<void>;
 }
 
 const VaultStateContext = createContext<State | null>(null);
@@ -91,7 +59,7 @@ const VaultActionsContext = createContext<Actions | null>(null);
 
 export function VaultContextProvider({ children }: { children: ReactNode }) {
     const db = useRef<IDBDatabase | null>(null);
-    const { currentProfile, switchProfile, createProfileFromSeed, eraceIdentities, markProfileCommited } = useIdentitySystem();
+    const { currentProfile, switchProfile, createProfileFromSeed, eraceIdentities, markProfileCommited, switchToUncommited } = useIdentitySystem();
     const { getSharedVaultCanisterAPI, getVetKDDerivedKey, userExistsWithVetKD } = useAPIContext();
 
     const [isReady, setIsReady] = useState(false);
@@ -135,7 +103,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     }, [currentProfile, isSeedPhraseImport]);
 
     const getAllDataAfterSeedImport = useCallback((async () => {
-        const icUserVaults = await getAllICVaults(currentProfile.principal.toString());
+        const icUserVaults = await getAllICVaults(currentProfile.principal);
         if (icUserVaults === null) {
             // No vaults returned per existing user --> create new one and store in index DB
             if (!currentProfile) throw new Error("No profile set");
@@ -157,10 +125,13 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
             req.onsuccess = () => res(req.result as Vault[]);
             req.onerror = () => rej("Failed to list vaults");
         });
+        console.log("allVaults", allVaults);
         // Try getting from IC
         if (allVaults.length === 0) {
             const userExists = await userExistsWithVetKD(currentProfile.principal.toString());
-            const icUserVaults = userExists ? await getAllICVaults(currentProfile.principal.toString()) : null;
+            console.log('userExists', userExists);
+            const icUserVaults = userExists ? await getAllICVaults(currentProfile.principal) : null;
+            console.log('icUserVaults', icUserVaults);
             if (icUserVaults === null) {
                 // No vaults returned per existing user --> create new one and store in index DB
                 if (!currentProfile) throw new Error("No profile set");
@@ -262,7 +233,8 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     const deleteVaultFromIC = useCallback(async (vaultPublicAddress: string): Promise<boolean> => {
         const api = await getSharedVaultCanisterAPI();
         try {
-            await api.delete_vault(currentProfile.principal.toString(), vaultPublicAddress);
+            const vaultPrincipal = Principal.fromText(vaultPublicAddress);
+            await api.delete_vault(vaultPrincipal);
             return true;
         } catch (e) {
             console.warn("Error on delete vault: ", e);
@@ -362,7 +334,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         });
     }, [currentProfile, currentVault]);
 
-    const prepareEncryptedVaultPayload = useCallback(async (vault: Vault): Promise<ICVaultData> => {
+    const prepareEncryptedVaultPayload = useCallback(async (vault: Vault): Promise<ICVaultDataGlobalSync> => {
         if (!currentProfile) throw new Error("No profile set");
 
         const vetKD = await getVetKDDerivedKey();
@@ -370,45 +342,24 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const fnKD = await deriveFinalKey(vaultKD, vetKD);
         const encryptedVaultName: string = await aesEncrypt(vault.vaultName, fnKD);
 
-        const flexible_grid_columns: Array<[string, [number, boolean]]> =
-            await Promise.all(vault.data.flexible_grid_columns.map(async (c) => {
-                const encryptedName = await aesEncrypt(c.name, fnKD);
-                const index = c.meta.index;
-                const hidden = !!c?.meta?.hidden;
-                return [encryptedName, [index >>> 0, hidden]];
-            }));
+        console.log('idb spreadsheet data: ', vault.data.flexible_grid);
+        const encSp = await encryptSpreadsheet(vault.data.flexible_grid, fnKD);
+        console.log('encrypted spreadsheet data: ', encSp);
 
-        const secure_notes: Array<[string, string]> =
-            await Promise.all(vault.data.secure_notes.map(async (n) => {
-                const encryptedName = await aesEncrypt(n.name, fnKD);
-                const encryptedContent = await aesEncrypt(n.content, fnKD);
-                return [encryptedName, encryptedContent]
-            }));
+        console.log('idb spreadsheet columns: ', vault.data.flexible_grid_columns);
+        const encSpC = await encryptSpreadsheetColumns(vault.data.flexible_grid_columns, fnKD);
+        console.log('encrypted spreadsheet columns: ', encSpC);
 
-        const flexible_grid: Array<[FlexGridDataKey, string]> =
-            await Promise.all(vault.data.flexible_grid.map(async (cell) => {
-                const encryptedName = await aesEncrypt(cell.value, fnKD);
-                return [
-                    { col: cell.key.col, row: cell.key.row },
-                    encryptedName,
-                ]
-            }));
+        console.log('idb notes: ', vault.data.secure_notes);
+        const encSn = await encryptSecureNotes(vault.data.secure_notes, fnKD);
+        console.log('encrypted notes: ', encSn);
 
-        const website_logins: Array<[string, Array<[string, string]>]> =
-            await Promise.all((vault.data.website_logins ?? []).map(async (site) => {
-                const encryptedName = await aesEncrypt(site.name, fnKD);
-                const encryptedEntries = await Promise.all(site.entries.map(async (e) => {
-                    const [encLogin, encPassword] = await Promise.all([
-                        aesEncrypt(e.login, fnKD),
-                        aesEncrypt(e.password, fnKD),
-                    ]);
-                    return [encLogin, encPassword];
-                }));
+        console.log('idb logins: ', vault.data.website_logins);
+        const { meta, logins } = await encryptWebsiteLoginsAndMetadata(vault.data.website_logins, fnKD);
+        console.log('encrypted logins: ', meta, logins);
 
-                return [encryptedName, encryptedEntries] as [string, Array<[string, string]>];
-            }));
-
-        return { flexible_grid_columns, secure_notes, flexible_grid, website_logins, vault_name: encryptedVaultName };
+        const serializedGlobalSync = serializeGlobalSync(encSp, encSpC, encSn, meta, logins);
+        return { name: encryptedVaultName, data: serializedGlobalSync };
     }, [currentProfile, currentVault]);
 
     const decryptAndAdaptVaultData = useCallback(async (vaultIcpPublicAddress: string, icVaultData: ICVaultData): Promise<{ data: VaultData; vaultName: string }> => {
@@ -418,41 +369,19 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const vaultKD = await deriveSignatureFromPublicKey(vaultIcpPublicAddress, currentProfile.identity);
         const fnKD = await deriveFinalKey(vaultKD, vetKD);
 
-        const flexible_grid_columns =
-            await Promise.all(icVaultData.flexible_grid_columns.map(async ([encName, [index, hidden]]) => {
-                const decName = await aesDecrypt(encName, fnKD);
-                return {
-                    name: decName,
-                    meta: { index: index, hidden: hidden },
-                };
-            }));
-        const secure_notes =
-            await Promise.all(icVaultData.secure_notes.map(async ([encName, encContent]) => {
-                const [name, content] = await Promise.all([
-                    aesDecrypt(encName, fnKD),
-                    aesDecrypt(encContent, fnKD),
-                ]);
-                return { name, content };
-            }));
-        const flexible_grid =
-            await Promise.all(icVaultData.flexible_grid.map(async ([key, encValue]) => {
-                const value = await aesDecrypt(encValue, fnKD);
-                return { key: { col: key.col, row: key.row }, value };
-            }));
-        const website_logins =
-            await Promise.all(icVaultData.website_logins.map(async ([encSiteName, encEntries]) => {
-                const name = await aesDecrypt(encSiteName, fnKD);
-                const entries = await Promise.all(encEntries.map(async ([encLogin, encPassword]) => {
-                    const [login, password] = await Promise.all([
-                        aesDecrypt(encLogin, fnKD),
-                        aesDecrypt(encPassword, fnKD),
-                    ]);
-                    return { login, password } as WebsiteLoginEntry;
-                }));
-                return { name, entries } as WebsiteLogin;
-            }));
+        const flexible_grid_columns = await decrypt_and_adapt_columns(icVaultData.spreadsheet_columns, fnKD);
+        console.log('flexible_grid_columns', flexible_grid_columns);
+        const flexible_grid = await decrypt_and_adapt_spreadsheet(icVaultData.spreadsheet, fnKD);
+        console.log('flexible_grid', flexible_grid);
 
-        const vaultName = await aesDecrypt(icVaultData.vault_name, fnKD);
+        const secure_notes = await decrypt_and_adapt_notes(icVaultData.notes, fnKD);
+        console.log('secure_notes', secure_notes);
+        const website_logins = await decrypt_and_adapt_logins(icVaultData.logins, fnKD);
+        console.log('website_logins', website_logins);
+
+        const vaultNameStr = Buffer.from(icVaultData.vault_name).toString();
+        console.log('vaultNameStr', vaultNameStr);
+        const vaultName = await aesDecrypt(vaultNameStr, fnKD);
 
         return {
             data: { flexible_grid_columns, secure_notes, flexible_grid, website_logins },
@@ -464,29 +393,31 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         if (!currentProfile) throw new Error("No profile set");
 
         const api = await getSharedVaultCanisterAPI();
-        const response = await api.get_vault(currentProfile.principal.toString(), vaultIcpPublicAddress);
+        const vaultPrincipal = Principal.fromText(vaultIcpPublicAddress);
+        const response = await api.get_user_vault(vaultPrincipal);
 
-        if (response?.length) {
-            return await decryptAndAdaptVaultData(vaultIcpPublicAddress, response[0]);
+        if (response) {
+            return await decryptAndAdaptVaultData(vaultIcpPublicAddress, response);
         }
         return null;
 
     }, [currentProfile, getSharedVaultCanisterAPI]);
 
-
-    const getAllICVaults = useCallback(async (userPrincipalId: string): Promise<Array<{
+    const getAllICVaults = useCallback(async (userPrincipalId: Principal): Promise<Array<{
         data: VaultData;
         vaultName: string;
         icpPublicAddress: string;
     }> | null> => {
         if (!currentProfile) throw new Error("No profile set");
         const api = await getSharedVaultCanisterAPI();
-        const allVaults = await api.get_all_vaults_for_user(userPrincipalId ?? currentProfile.principal.toString());
-        if (allVaults.length > 0) {
+        const allVaults = await api.get_all_user_vaults(userPrincipalId ?? currentProfile.principal);
+        console.log('allvaults', allVaults);
+        if (allVaults.vaults.length > 0) {
             const allDecryptedVaultsData = [];
-            for (let [principalVaultId, vaultData] of allVaults) {
-                const decryptedVaultData = await decryptAndAdaptVaultData(principalVaultId, vaultData);
-                allDecryptedVaultsData.push({ icpPublicAddress: principalVaultId, ...decryptedVaultData });
+            for (let [principalVaultId, vaultData] of allVaults.vaults) {
+                const principalStr = Principal.fromUint8Array(principalVaultId as Uint8Array<ArrayBufferLike>).toString();
+                const decryptedVaultData = await decryptAndAdaptVaultData(principalStr, vaultData);
+                allDecryptedVaultsData.push({ icpPublicAddress: principalStr, ...decryptedVaultData });
             }
             return allDecryptedVaultsData;
         }
@@ -528,17 +459,32 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         if (!currentProfile) throw new Error("No profile set");
         if (!currentVault) throw new Error("No current vault set");
 
-        const payload = await prepareEncryptedVaultPayload(currentVault);
+        const { name, data } = await prepareEncryptedVaultPayload(currentVault);
         const api = await getSharedVaultCanisterAPI();
-        await api.add_or_update_vault(currentProfile.principal.toString(), currentVault.icpPublicAddress, payload);
+        await api.global_sync(Principal.fromText(currentVault.icpPublicAddress), data); //add Principal directly to current vault state
+
+        // lmao need to add vault name changer thingy to track changes across IDB, now commiting all
+        const vaultNamesForSync = [{ vault_id: Principal.from(currentVault.icpPublicAddress).toUint8Array(), vault_name: name }]
+        const serializedData = serializeVaultNames(vaultNamesForSync);
+        await api.vault_names_sync(serializedData);
         await setCurrentVaultSyncStatusIdb(true, true);
         setVaults((prevState) => prevState.map((v) => v.vaultID == currentVaultId ? { ...currentVault, synced: true, existsOnIc: true } : v));
         await markProfileCommited(currentProfile);
-    }, [currentProfile, currentVault, getSharedVaultCanisterAPI]);
+    }, [currentProfile, currentVault, getSharedVaultCanisterAPI, vaults]);
 
     const logOut = useCallback(async (): Promise<void> => {
         await dropPersistanceStorageForAllVaults();
         await eraceIdentities();
+    }, []);
+
+    const switchToUncommitedProfile = useCallback(async (idbProfile: indexDBProfile) => {
+        try {
+            await dropPersistanceStorageForAllVaults();
+            await switchToUncommited(idbProfile);
+            setIsSeedPhraseImport(true);
+        } catch (e) {
+            console.log("Error in from dropping IDB for vaults or profile switching", e);
+        }
     }, []);
 
     const state = useMemo<State>(
@@ -547,8 +493,8 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
     );
 
     const actions = useMemo<Actions>(
-        () => ({ createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC, logOut }),
-        [createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC, logOut]
+        () => ({ createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC, logOut, switchToUncommitedProfile }),
+        [createVault, deleteVault, renameVault, switchVault, saveCurrentVaultDataToIDB, syncCurrentVaultWithBackend, getICVault, getAllICVaults, validateAndImportIdentityWithVaultFromSeed, deleteVaultFromIC, logOut, switchToUncommitedProfile]
     );
 
     if (!isReady) return <Loader />;

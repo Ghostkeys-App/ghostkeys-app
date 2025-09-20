@@ -2284,7 +2284,7 @@ input, button {
 .gk-submenu-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; background: rgba(255,255,255,0.06); color: #fff; }
 .gk-submenu-item:hover { background: rgba(255,255,255,0.08); }
 .gk-submenu-item.active { opacity: .6; }
-.gk-submenu-badge { font-size: .75rem; opacity: .8; }
+.gk-submenu-badge { font-size: .69rem; opacity: .8; }
 .gk-submenu-label { font-size: .9rem; }
 
 /* Settings Overlay */
@@ -2323,3 +2323,23 @@ input, button {
 }
 .gk-settings-row .label { opacity: .9; }
 .gk-settings-row .value.muted, .gk-settings-section .muted { opacity: .75; }
+
+.gk-profile-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.gk-profile-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 14px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); }
+.gk-profile-card.is-active { border-color: rgba(96,178,255,.35); box-shadow: 0 0 0 1px rgba(96,178,255,.25); }
+.gk-profile-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.gk-profile-meta { display: flex; flex-direction: column; gap: 6px; }
+.gk-profile-principal { font-weight: 600; font-size: 1rem; letter-spacing: .01em; }
+.gk-profile-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.gk-profile-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: .75rem; letter-spacing: .02em; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); }
+.gk-profile-badge.success { border-color: rgba(104,210,150,.45); background: rgba(104,210,150,.16); }
+.gk-profile-badge.warning { border-color: rgba(250,184,92,.45); background: rgba(250,184,92,.16); }
+.gk-profile-note { font-size: .85rem; opacity: .75; margin: 0; word-break: break-all; }
+.gk-profile-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.gk-profile-footer { margin-top: 20px; display: flex; justify-content: flex-end; }
+.gk-seed-text { padding: 14px; border-radius: 12px; background: rgba(10,16,42,.4); border: 1px solid rgba(255,255,255,.14); font-family: "IBM Plex Mono", monospace; font-size: .95rem; line-height: 1.5; word-break: break-word; }
+.gk-profiles-settings-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+} 

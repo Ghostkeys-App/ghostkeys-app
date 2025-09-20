@@ -6,9 +6,11 @@ import AddSiteModal from "./AddSiteModal.tsx";
 import {
   useVaultProviderActions,
   useVaultProviderState,
+} from "../../utility/vault-provider"
+import {
   WebsiteLogin,
   WebsiteLoginEntry
-} from "../../utility/vault-provider";
+} from "../../utility/vault-provider/types.ts";
 import { exportJson, IconButton, siteIconFor } from "./helpers.tsx";
 import { toast } from "../../utility/toast";
 import { copyToClipboard } from "../../utility/clipboard";
@@ -31,12 +33,12 @@ export default function WebsiteLogins(): JSX.Element {
 
   // Derived values
   const websiteLogins: WebsiteLogin[] = useMemo(
-    () => currentVault?.data.website_logins || [],
+    () => currentVault?.data?.website_logins || [],
     [currentVault]
   );
 
   const filteredWebsiteLogins: WebsiteLogin[] = React.useMemo(() => {
-    const all = currentVault?.data.website_logins || [];
+    const all = currentVault?.data?.website_logins || [];
     const needle = q.trim().toLowerCase();
     if (!needle) return all;
     return all.filter((s) =>
