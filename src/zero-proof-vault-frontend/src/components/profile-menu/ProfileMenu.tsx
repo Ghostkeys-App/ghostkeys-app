@@ -163,6 +163,7 @@ export default function ProfileMenu({ open, anchorEl, onClose, beforeItems, afte
                   >
                     <span className="gk-submenu-label">{slug}</span>
                     {p.active && <span className="gk-submenu-badge">Active</span>}
+                    {!p.commited && <span className="gk-submenu-badge">Not Synced</span>}
                   </button>
                 );
               })}

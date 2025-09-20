@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Loader from "../loader/Loader.tsx";
-import { useIdentitySystem, UserProfile } from "../identity";
+import { useIdentitySystem } from "../identity";
 import {
     aesDecrypt,
     aesEncrypt,
@@ -10,29 +10,19 @@ import {
 } from "../crypto/encdcrpt.ts";
 import { useAPIContext } from "../api/APIContext.tsx";
 import {
-    Spreadsheet as ICSpreadsheet,
-    SpreadsheetColumn as ICSpreadsheetColumns,
-    Notes as ICNotes,
-    VaultNames as ICVaultNames,
-    Logins as ICLogins,
     VaultData as ICVaultData
 } from "../../../../declarations/shared-vault-canister-backend/shared-vault-canister-backend.did";
 import { Principal } from "@dfinity/principal";
 import {
-    // VaultData,
     Vault,
     ICVaultDataGlobalSync,
-    WebsiteLoginEntry,
-    WebsiteLogin,
-    FlexGridDataKey,
-    ICGridColumns,
     VaultData,
     serializeVaultNames
 } from './types.ts'
 
-import { serializeGlobalSync, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
-import { decrypt_and_adapt_columns, decrypt_and_adapt_spreadsheet, encryptAndSerializeSpreadsheetColumn, encryptSpreadsheet, encryptSpreadsheetColumns } from "./spreadsheet.ts";
-import { decrypt_and_adapt_notes, encryptAndSerializeSecureNotes, encryptSecureNotes } from "./secure_notes.ts";
+import { serializeGlobalSync } from "@ghostkeys/ghostkeys-sdk";
+import { decrypt_and_adapt_columns, decrypt_and_adapt_spreadsheet, encryptSpreadsheet, encryptSpreadsheetColumns } from "./spreadsheet.ts";
+import { decrypt_and_adapt_notes, encryptSecureNotes } from "./secure_notes.ts";
 import { decrypt_and_adapt_logins, encryptWebsiteLoginsAndMetadata } from "./logins.ts";
 import { Buffer } from "buffer";
 

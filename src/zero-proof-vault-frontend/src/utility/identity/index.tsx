@@ -36,6 +36,8 @@ export type IdentityContextType = {
   addProfileFromSeed: (seed: string) => Promise<UserProfile>;
   eraceIdentities: () => Promise<void>;
   markProfileCommited: (profile: UserProfile) => Promise<void>;
+  removeProfile: (userID: string) => Promise<void>;
+  addEmptyProfile: () => Promise<void>;
 };
 
 export type indexDBProfile = {
@@ -53,66 +55,6 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
   const [currentProfile, setCurrentProfile] = useState<UserProfile>({} as any); // as any because there is no circumstances where currentProfile is used and could be possibly undefined
   const [profiles, setProfiles] = useState<indexDBProfile[]>([]);
 
-  useEffect(() => {
-    const init = async () => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-      request.onupgradeneeded = (e) => {
-        const db = (e.target as IDBOpenDBRequest).result;
-
-        if (!db.objectStoreNames.contains(PROFILES_STORE)) {
-          db.createObjectStore(PROFILES_STORE, { keyPath: "userID" });
-        }
-      };
-
-      request.onsuccess = async (e) => {
-        db.current = (e.target as IDBOpenDBRequest).result;
-        await bootstrap();
-        setIsReady(true);
-      };
-    };
-
-    init();
-  }, []);
-
-  const bootstrap = async () => {
-    const all = await getAllProfiles();
-    if (all && all.length > 0) {
-      setProfiles(all);
-      const active = all.find((p) => p.active) ?? all[0];
-      if (active && active.seedPhrase) {
-        const innerProfile = await createProfileFromSeed(active.seedPhrase);
-        innerProfile.commited = active.commited;
-        setCurrentProfile(innerProfile);
-      }
-    } else {
-      const profile = await createProfileFromSeed();
-      const idbLikeProfile = { userID: profile.userID, seedPhrase: profile.seedPhrase, active: true, commited: false };
-      await upsertProfile(idbLikeProfile);
-      setProfiles([idbLikeProfile]);
-      setCurrentProfile(profile);
-    }
-  };
-
-  const getAllProfiles = async () => {
-    if (!db.current) throw new Error("DB not initialized");
-    const tx = db.current.transaction(PROFILES_STORE, "readwrite");
-
-    return new Promise<indexDBProfile[]>((resolve, reject) => {
-      const req = tx.objectStore(PROFILES_STORE).getAll();
-      req.onsuccess = () => {
-        const rows: indexDBProfile[] = (req.result || []).map((r: any) => ({
-          userID: r?.userID,
-          seedPhrase: r?.seedPhrase,
-          active: !!r?.active,
-          commited: r?.commited
-        }));
-        resolve(rows);
-      };
-      req.onerror = () => reject(req.error);
-    });
-  };
-
   const createProfileFromSeed = useCallback(async (existingSeed?: string): Promise<UserProfile> => {
     let seed, principal, identity;
     if (existingSeed) {
@@ -129,6 +71,25 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
       seedPhrase: seed,
       commited: false
     };
+  }, []);
+
+  const getAllProfiles = useCallback(async () => {
+    if (!db.current) throw new Error("DB not initialized");
+    const tx = db.current.transaction(PROFILES_STORE, "readwrite");
+
+    return new Promise<indexDBProfile[]>((resolve, reject) => {
+      const req = tx.objectStore(PROFILES_STORE).getAll();
+      req.onsuccess = () => {
+        const rows: indexDBProfile[] = (req.result || []).map((r: any) => ({
+          userID: r?.userID,
+          seedPhrase: r?.seedPhrase,
+          active: !!r?.active,
+          commited: r?.commited
+        }));
+        resolve(rows);
+      };
+      req.onerror = () => reject(req.error);
+    });
   }, []);
 
   const upsertProfile = useCallback(async (profile: indexDBProfile) => {
@@ -152,6 +113,47 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     //   tx.oncomplete = () => res();
     // });
   }, []);
+
+  const bootstrap = useCallback(async () => {
+    const all = await getAllProfiles();
+    if (all && all.length > 0) {
+      setProfiles(all);
+      const active = all.find((p) => p.active) ?? all[0];
+      if (active && active.seedPhrase) {
+        const innerProfile = await createProfileFromSeed(active.seedPhrase);
+        innerProfile.commited = active.commited;
+        setCurrentProfile(innerProfile);
+      }
+    } else {
+      const profile = await createProfileFromSeed();
+      const idbLikeProfile = { userID: profile.userID, seedPhrase: profile.seedPhrase, active: true, commited: false };
+      await upsertProfile(idbLikeProfile);
+      setProfiles([idbLikeProfile]);
+      setCurrentProfile(profile);
+    }
+  }, [createProfileFromSeed, getAllProfiles, upsertProfile]);
+
+  useEffect(() => {
+    const init = async () => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+      request.onupgradeneeded = (e) => {
+        const db = (e.target as IDBOpenDBRequest).result;
+
+        if (!db.objectStoreNames.contains(PROFILES_STORE)) {
+          db.createObjectStore(PROFILES_STORE, { keyPath: "userID" });
+        }
+      };
+
+      request.onsuccess = async (e) => {
+        db.current = (e.target as IDBOpenDBRequest).result;
+        await bootstrap();
+        setIsReady(true);
+      };
+    };
+
+    init();
+  }, [bootstrap]);
 
   const setActiveProfileById = useCallback(async (userID: string) => {
     if (!db.current) throw new Error("DB not initialized");
@@ -220,6 +222,59 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     setCurrentProfile({ ...profile, commited: true });
   }, [currentProfile, profiles]);
 
+  const removeProfile = useCallback(async (userID: string): Promise<void> => {
+    if (!db.current) throw new Error("DB not initialized");
+
+    const removedWasCurrent = currentProfile?.userID === userID;
+
+    await new Promise<void>((res, rej) => {
+      const tx = db.current!.transaction(PROFILES_STORE, "readwrite");
+      const store = tx.objectStore(PROFILES_STORE);
+      const req = store.delete(userID);
+      req.onerror = () => rej(req.error);
+      tx.onabort = () => rej(tx.error ?? new Error("IDB tx aborted"));
+      tx.onerror = () => rej(tx.error ?? new Error("IDB tx error"));
+      tx.oncomplete = () => res();
+    });
+
+    let remaining = await getAllProfiles();
+    if (remaining.length === 0) {
+      const profile = await createProfileFromSeed();
+      const idbLikeProfile = { userID: profile.userID, seedPhrase: profile.seedPhrase, active: true, commited: false };
+      await upsertProfile(idbLikeProfile);
+      setProfiles([idbLikeProfile]);
+      setCurrentProfile(profile);
+      return;
+    }
+
+    let activeEntry = remaining.find((p) => p.active);
+    if (!activeEntry) {
+      const fallbackId = remaining[0].userID;
+      await setActiveProfileById(fallbackId);
+      remaining = await getAllProfiles();
+      activeEntry = remaining.find((p) => p.userID === fallbackId) ?? remaining[0];
+    }
+
+    setProfiles(remaining);
+
+    if (!activeEntry) return;
+
+    if (removedWasCurrent) {
+      const nextProfile = await createProfileFromSeed(activeEntry.seedPhrase);
+      nextProfile.commited = activeEntry.commited;
+      setCurrentProfile(nextProfile);
+    } else if (currentProfile && currentProfile.userID === activeEntry.userID && currentProfile.commited !== activeEntry.commited) {
+      setCurrentProfile({ ...currentProfile, commited: activeEntry.commited });
+    }
+  }, [createProfileFromSeed, currentProfile, getAllProfiles, setActiveProfileById, upsertProfile]);
+
+  const addEmptyProfile = useCallback(async (): Promise<void> => {
+    const profile = await createProfileFromSeed();
+    const idbLikeProfile = { userID: profile.userID, seedPhrase: profile.seedPhrase, active: false, commited: false };
+    await upsertProfile(idbLikeProfile);
+    setProfiles([...profiles, idbLikeProfile]);
+  }, [profiles]);
+
   const contextValue: IdentityContextType = {
     currentProfile,
     profiles,
@@ -228,7 +283,9 @@ export function IdentitySystemProvider({ children }: { children: ReactNode }) {
     setActiveProfileById,
     addProfileFromSeed,
     eraceIdentities,
-    markProfileCommited
+    markProfileCommited,
+    removeProfile,
+    addEmptyProfile
   };
 
   if (!isReady) return <Loader />;
