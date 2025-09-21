@@ -468,6 +468,50 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const serializedData = serializeVaultNames(vaultNamesForSync);
         await api.vault_names_sync(serializedData);
         await setCurrentVaultSyncStatusIdb(true, true);
+
+        // marking website-logins data as committed after successful sync
+        let website_logins = currentVault.data.website_logins.filter((login) => !!login.name);
+        website_logins.forEach((login) => {
+            login.commited = true;
+            login.entries = login.entries.filter((entry) => {
+                if (entry.login && entry.password) {
+                    entry.commited = true;
+                } else {
+                    return false
+                }
+
+                return true;
+            });
+        });
+
+        // marking security-notes data as committed after successful sync
+        let secure_notes = currentVault.data.secure_notes.filter((note) => !!note.name);
+        secure_notes.forEach((note) => {
+            note.committed = true;
+        });
+
+        // marking flexible-grid cells data as committed after successful sync
+        let flexible_grid = currentVault.data.flexible_grid.filter((dataCell) => !!dataCell.value);
+        flexible_grid.forEach((dataCell) => {
+            dataCell.commited = true;
+        });
+
+        // marking flexible-grid-columns data as committed after successful sync
+        let flexible_grid_columns = currentVault.data.flexible_grid_columns.filter((column) => !!column.name);
+        flexible_grid_columns.forEach((column) => {
+            column.commited = true;
+        });
+
+        currentVault.data = {
+            ...currentVault.data,
+            website_logins,
+            secure_notes,
+            flexible_grid,
+            flexible_grid_columns
+        };
+
+        await saveCurrentVaultDataToIDB(currentVault.data, true);
+
         setVaults((prevState) => prevState.map((v) => v.vaultID == currentVaultId ? { ...currentVault, synced: true, existsOnIc: true } : v));
         await markProfileCommited(currentProfile);
     }, [currentProfile, currentVault, getSharedVaultCanisterAPI, vaults]);

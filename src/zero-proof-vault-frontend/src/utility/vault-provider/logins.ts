@@ -26,9 +26,9 @@ export async function decrypt_and_adapt_logins(logins: Logins, fnKD: Uint8Array<
             const valueStart = sep + 1;
             const user = userPassDecrpt.slice(valueStart, valueStart + userLen);
             const pass = userPassDecrpt.slice(valueStart + userLen);
-            entries[loginEntryIndex] = { login: user, password: pass };
+            entries[loginEntryIndex] = { login: user, password: pass, commited: true };
         }
-        website_logins[loginIndex] = { name: labelDcrp, entries };
+        website_logins[loginIndex] = { name: labelDcrp, entries, commited: true };
     }
     return website_logins;
 }

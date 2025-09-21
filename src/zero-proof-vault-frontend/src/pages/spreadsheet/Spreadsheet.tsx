@@ -48,6 +48,8 @@ export default function SpreadsheetCanvas(): JSX.Element {
     cols: COLS_DEFAULT_AMOUNT,
     data: new Map<CellKey, string>(),
     columns: [] as ColumnMeta[], // length === cols (lazily filled)
+    committedKeys: new Set<string>(),
+    colCommitted: new Set<number>(),
   });
 
   // View refs
@@ -357,45 +359,48 @@ export default function SpreadsheetCanvas(): JSX.Element {
     m.columns = [];
     m.cols = 0;
 
-    if (Array.isArray(vaultData.flexible_grid_columns) && vaultData.flexible_grid_columns.length > 0) {
-      // compute how many columns we need based on highest index
-      const maxIcIdx = vaultData.flexible_grid_columns.reduce((acc, col) => Math.max(acc, Number(col?.meta?.index ?? 0)), 0);
-      const maxIdx = Math.max(maxIcIdx, COLS_DEFAULT_AMOUNT);
+    // fixed 50 columns: start with defaults, then overlay only modified columns from IDB
+    m.columns = [];
+    m.cols = COLS_DEFAULT_AMOUNT;
+    m.colCommitted.clear();
 
-      // prefill with defaults up to maxIdx
-      for (let i = 0; i <= maxIdx; i++) {
-        m.columns[i] = { name: colName(i), masked: false };
-      }
-      // place each configured column at its declared index
+    for (let i = 0; i < COLS_DEFAULT_AMOUNT; i++) {
+      m.columns[i] = { name: colName(i), masked: false };
+    }
+    if (Array.isArray(vaultData.flexible_grid_columns)) {
       for (const col of vaultData.flexible_grid_columns) {
-        const idx = col.meta.index;
-        m.columns[idx] = {
-          name: col.name ?? colName(idx),
-          masked: col.meta.hidden,
-        };
-      }
-      m.cols = m.columns.length;
-    } else {
-      m.cols = COLS_DEFAULT_AMOUNT;
-      for (let i = 0; i <= COLS_DEFAULT_AMOUNT; i++) {
-        m.columns[i] = { name: colName(i), masked: false };
+        const idx = Number(col?.meta?.index ?? -1);
+        if (idx >= 0 && idx < COLS_DEFAULT_AMOUNT) {
+          if ((col as any).commited === true) m.colCommitted.add(idx);
+          // If BE sends name: "" for "revert/delete", show default in UI
+          const displayName = col?.name == null || col?.name === "" ? colName(idx) : col.name;
+          m.columns[idx] = {
+            name: displayName,
+            masked: !!col?.meta?.hidden,
+          };
+        }
       }
     }
 
     // ----- Cells -----
     m.data.clear();
+    m.committedKeys.clear();
     let maxRow = 0;
 
     for (const cell of vaultData.flexible_grid) {
       const r = cell.key.row;
       const c = cell.key.col;
       const v = cell.value ?? "";
-      // TODO: remove if not needed
-      // // ignore out-of-range cols (in case data refers to a column beyond declared columns)
-      // if (c < 0 || c >= m.columns.length) continue;
-      if (v == null || v === "") continue;
+      const k = keyOf(r, c);
 
-      m.data.set(keyOf(r, c), v);
+      // record commit state even if value is empty
+      if ((cell as any).commited === true) {
+        m.committedKeys.add(k);
+      }
+      if (v != null && v !== "") {
+        m.data.set(k, v);
+      }
+
       if (r > maxRow) {
         maxRow = r;
       }
@@ -435,24 +440,53 @@ export default function SpreadsheetCanvas(): JSX.Element {
     if (!currentVault) {return}
     const m = model.current;
 
-    // flatten sparse map
-    const flexible_grid = [];
+    // Flatten cells. Include empty-string values for committed cells (IC deletion semantics).
+    const flexible_grid: Array<{ key:{col:number;row:number}; value:string; commited?: boolean }> = [];
     for (const [k, v] of m.data.entries()) {
       const { r, c } = parseKey(k);
-      if (v != null && v !== "") flexible_grid.push({ key: { col: c, row: r }, value: v });
+      const isCommitted = m.committedKeys.has(k);
+      // Uncommitted empties should never live in the map (we delete them on clear),
+      // but guard anyway: skip only if empty AND not committed
+      if (v === "" && !isCommitted) continue;
+      flexible_grid.push({ key: { col: c, row: r }, value: v, commited: isCommitted });
     }
 
-    // columns meta
-    ensureCols(m.cols);
-    const flexible_grid_columns = m.columns.map((col, index) => ({
-      name: col.name,
-      meta: {
-        index,
-        hidden: col.masked,
-      }
-    }));
+    // columns meta (DIFF-ONLY):
+    // persist only columns that differ from defaults { name: colName(i), hidden: false, index: i }
+    ensureCols(COLS_DEFAULT_AMOUNT);
+    const modifiedCols: Array<{ name: string; meta: { index: number; hidden: boolean }, commited?: boolean }> = [];
+    for (let index = 0; index < COLS_DEFAULT_AMOUNT; index++) {
+      const col = m.columns[index] ?? { name: colName(index), masked: false };
+      // treat empty string same as default (UI always displays default if falsy)
+      const isDefaultName = !col.name || col.name === colName(index);
+      const isDefaultMask = (col.masked ?? false) === false;
+      const isCommitted = m.colCommitted.has(index);
 
-    await saveCurrentVaultDataToIDB({...currentVault.data, flexible_grid, flexible_grid_columns});
+      if (isCommitted && isDefaultName && isDefaultMask) {
+        // committed but reverted to defaults -> send tombstone (name: "")
+        modifiedCols.push({
+          name: "",
+          meta: { index, hidden: false },
+          commited: true
+        });
+      } else if (!isDefaultName || !isDefaultMask) {
+        // genuinely modified column -> persist actual state
+        modifiedCols.push({
+          name: col.name || colName(index),
+          meta: { index, hidden: !!col.masked },
+          commited: isCommitted || undefined
+        });
+      } // else: non-committed & default -> omit
+    }
+
+    const nextPayload: any = {
+      ...currentVault.data,
+      flexible_grid,
+      // always present for consistency; empty when nothing is modified
+      flexible_grid_columns: modifiedCols
+    };
+
+    await saveCurrentVaultDataToIDB(nextPayload);
   }
 
   function hitMaskIcon(clientX: number, clientY: number): number | null {
@@ -480,11 +514,16 @@ export default function SpreadsheetCanvas(): JSX.Element {
 
   // --- Column helpers (names + hidden) ---
   function ensureCols(n: number) {
+    // fixed: always ensure exactly COLS_DEFAULT_AMOUNT columns,
+    // ignore requests beyond 50 and backfill defaults if needed
     const m = model.current;
-    if (m.columns.length < n) {
-      for (let i = m.columns.length; i < n; i++) {
+    const target = COLS_DEFAULT_AMOUNT;
+    if (m.columns.length < target) {
+      for (let i = m.columns.length; i < target; i++) {
         m.columns.push({ name: colName(i), masked: false });
       }
+    } else if (m.columns.length > target) {
+      m.columns.length = target;
     }
   }
   function getColName(c: number) {
@@ -496,14 +535,14 @@ export default function SpreadsheetCanvas(): JSX.Element {
     model.current.columns[c].name = name || colName(c);
   }
   function getVisibleCols(): number[] {
-    ensureCols(model.current.cols);
-    return Array.from({ length: model.current.cols }, (_, i) => i);
+    ensureCols(COLS_DEFAULT_AMOUNT);
+    return Array.from({ length: COLS_DEFAULT_AMOUNT }, (_, i) => i);
   }
   function visibleIndexOf(c: number): number {
-    return (c >= 0 && c < model.current.cols) ? c : -1;
+    return (c >= 0 && c < COLS_DEFAULT_AMOUNT) ? c : -1;
   }
   function logicalFromVisibleIndex(vi: number): number {
-    return (vi >= 0 && vi < model.current.cols) ? vi : -1;
+    return (vi >= 0 && vi < COLS_DEFAULT_AMOUNT) ? vi : -1;
   }
 
   // Map mouse coords -> hit (header/cell) respecting hidden columns
@@ -715,8 +754,17 @@ export default function SpreadsheetCanvas(): JSX.Element {
       return;
     }
 
-    if (editVal === "") model.current.data.delete(k);
-    else model.current.data.set(k, editVal);
+    if (editVal === "") {
+      // If the cell is committed, keep an empty-string record (IC will delete it).
+      if (model.current.committedKeys.has(k)) {
+        model.current.data.set(k, "");
+      } else {
+        model.current.data.delete(k);
+      }
+    } else {
+      model.current.data.set(k, editVal);
+    }
+
     setEditing(false);
     if (refocus) requestAnimationFrame(focusHost);
     scheduleDraw();
@@ -809,7 +857,12 @@ export default function SpreadsheetCanvas(): JSX.Element {
       // Otherwise: clear the selected cells
       for (let r = r0; r <= r1; r++) {
         for (let c = c0; c <= c1; c++) {
-          m.data.delete(keyOf(r, c));
+          const k = keyOf(r, c);
+          if (m.committedKeys.has(k)) {
+            m.data.set(k, ""); // mark for IC deletion
+          } else {
+            m.data.delete(k);
+          }
         }
       }
       scheduleDraw();
@@ -904,8 +957,8 @@ export default function SpreadsheetCanvas(): JSX.Element {
       if (startVI === -1) startVI = 0;
 
       const needRows = startR + parsed.length;
-      const needCols = vis[startVI] + (parsed[0]?.length || 1);
-      ensureSize(needRows, needCols);
+      // columns are fixed; only ensure rows
+      ensureSize(needRows, COLS_DEFAULT_AMOUNT);
 
       for (let i = 0; i < parsed.length; i++) {
         for (let j = 0; j < parsed[i].length; j++) {
@@ -913,6 +966,7 @@ export default function SpreadsheetCanvas(): JSX.Element {
           if (vi >= vis.length) break;
           const logicalC = vis[vi];
           model.current.data.set(keyOf(startR + i, logicalC), parsed[i][j]);
+          // newly pasted cells are not committed yet; leave committedKeys unchanged
         }
       }
 
@@ -930,11 +984,12 @@ export default function SpreadsheetCanvas(): JSX.Element {
     }
   }
 
-  function ensureSize(minRows: number, minColsLogical: number) {
+  function ensureSize(minRows: number, _minColsLogical: number) {
     const m = model.current;
     if (minRows > m.rows) m.rows = minRows;
-    if (minColsLogical > m.cols) m.cols = minColsLogical;
-    ensureCols(m.cols);
+    // columns are fixed; never expand beyond 50
+    m.cols = COLS_DEFAULT_AMOUNT;
+    ensureCols(COLS_DEFAULT_AMOUNT);
 
     // update spacer width based on visible count
     if (spacerRef.current) {
@@ -948,13 +1003,19 @@ export default function SpreadsheetCanvas(): JSX.Element {
   async function addRowBelow() {
     const pos = Math.max(sel.r0, sel.r1) + 1;
     const next = new Map<CellKey, string>();
+    const nextCommitted = new Set<string>();
+
     model.current.data.forEach((v, k) => {
       const { r, c } = parseKey(k);
-      if (r >= pos) next.set(keyOf(r + 1, c), v); else next.set(k, v);
+      const nk = r >= pos ? keyOf(r + 1, c) : k;
+      next.set(nk, v);
+      if (model.current.committedKeys.has(k)) nextCommitted.add(nk);
     });
     model.current.data = next;
+    model.current.committedKeys = nextCommitted;
     model.current.rows += 1;
-    ensureSize(model.current.rows, model.current.cols);
+
+    ensureSize(model.current.rows, COLS_DEFAULT_AMOUNT);
     // setSel(s => ({ r0: pos, c0: s.c0, r1: pos, c1: s.c0 }));
     setSingleSelection(pos, sel.c0);
     scheduleDraw();
@@ -962,65 +1023,45 @@ export default function SpreadsheetCanvas(): JSX.Element {
     await saveSpreadsheetToIDB();
   }
 
-  async function addColRight() {
-    const pos = Math.max(sel.c0, sel.c1) + 1;
-    const next = new Map<CellKey, string>();
-    model.current.data.forEach((v, k) => {
-      const { r, c } = parseKey(k);
-      if (c >= pos) next.set(keyOf(r, c + 1), v); else next.set(k, v);
-    });
-    model.current.data = next;
-    model.current.cols += 1;
-    ensureSize(model.current.rows, model.current.cols);
-    // setSel(s => ({ r0: s.r0, c0: pos, r1: s.r0, c1: pos }));
-    setSingleSelection(sel.r0, pos);
-    scheduleDraw();
-    requestAnimationFrame(focusHost);
-    await saveSpreadsheetToIDB();
-  }
+  // async function addColRight() {
+  //   const pos = Math.max(sel.c0, sel.c1) + 1;
+  //   const next = new Map<CellKey, string>();
+  //   model.current.data.forEach((v, k) => {
+  //     const { r, c } = parseKey(k);
+  //     if (c >= pos) next.set(keyOf(r, c + 1), v); else next.set(k, v);
+  //   });
+  //   model.current.data = next;
+  //   model.current.cols += 1;
+  //   ensureSize(model.current.rows, model.current.cols);
+  //   // setSel(s => ({ r0: s.r0, c0: pos, r1: s.r0, c1: pos }));
+  //   setSingleSelection(sel.r0, pos);
+  //   scheduleDraw();
+  //   requestAnimationFrame(focusHost);
+  //   await saveSpreadsheetToIDB();
+  // }
 
   async function deleteColumns(start: number, count: number) {
+    // fixed columns: interpret Delete on full-column selection as "clear cells in these columns"
     const m = model.current;
-    if (count <= 0 || start < 0 || start >= m.cols) return;
-
-    const end = Math.min(start + count - 1, m.cols - 1);
-    const removed = end - start + 1;
-
-    // 1) Rebuild columns array (drop [start..end])
-    m.columns = m.columns.filter((_, idx) => idx < start || idx > end);
-    m.cols = m.columns.length;
-
-    // 2) Rebuild data map: drop cells in deleted range; shift the rest left
+    if (count <= 0 || start < 0 || start >= COLS_DEFAULT_AMOUNT) return;
+    const end = Math.min(start + count - 1, COLS_DEFAULT_AMOUNT - 1);
     const next = new Map<CellKey, string>();
+
     m.data.forEach((v, k) => {
       const { r, c } = parseKey(k);
-      if (c < start) {
-        next.set(k, v); // unchanged
-      } else if (c >= start && c <= end) {
-        // dropped
+      if (c >= start && c <= end) {
+        // if committed, keep empty-string; otherwise drop
+        if (m.committedKeys.has(k)) {
+          next.set(k, ""); // mark for IC deletion
+        } // else: omit
       } else {
-        // shift left by removed
-        next.set(keyOf(r, c - removed), v);
+        next.set(k, v);
       }
     });
+    // ensure committed set remains (we do not change commit state here)
     m.data = next;
 
-    // 3) Resize spacer (width depends on column count)
-    if (spacerRef.current) {
-      const visCols = getVisibleCols().length;
-      spacerRef.current.style.width = `${HDR_W + visCols * COL_W}px`;
-      spacerRef.current.style.height = `${HDR_H + m.rows * ROW_H}px`;
-    }
-
-    // 4) Fix selection to the column that now sits at `start` (or last col)
-    const destCol = Math.max(0, Math.min(start, m.cols - 1));
-    setSel({
-      r0: 0,
-      r1: Math.max(0, m.rows - 1),
-      c0: destCol,
-      c1: destCol,
-    });
-
+    // columns meta (name/masked) remain untouched
     scheduleDraw();
     await saveSpreadsheetToIDB();
   }
@@ -1032,19 +1073,31 @@ export default function SpreadsheetCanvas(): JSX.Element {
     const end = Math.min(start + count - 1, m.rows - 1);
     const removed = end - start + 1;
 
-    // 1) Rebuild data: drop rows in [start..end]; shift above stays, below shifts up
+    // 1) Rebuild data: rows in [start..end] -> if committed: keep as empty-string; else drop.
+    // Rows below shift up by `removed`
     const next = new Map<CellKey, string>();
+    const nextCommitted = new Set<string>();
     m.data.forEach((v, k) => {
       const { r, c } = parseKey(k);
+      const isCommitted = m.committedKeys.has(k);
       if (r < start) {
         next.set(k, v);
+        if (isCommitted) nextCommitted.add(k);
       } else if (r >= start && r <= end) {
-        // dropped
+        if (isCommitted) {
+          const nk = keyOf(r, c);
+          next.set(nk, ""); // mark deletion for IC
+          nextCommitted.add(nk);
+        }
+        // else drop
       } else {
-        next.set(keyOf(r - removed, c), v);
+        const nk = keyOf(r - removed, c);
+        next.set(nk, v);
+        if (isCommitted) nextCommitted.add(nk);
       }
     });
     m.data = next;
+    m.committedKeys = nextCommitted;
 
     // 2) Adjust row count
     m.rows = Math.max(0, m.rows - removed);
@@ -1070,7 +1123,13 @@ export default function SpreadsheetCanvas(): JSX.Element {
   }
 
   async function clearAll() {
-    model.current.data.clear();
+    // For committed cells -> keep empty-string; for others -> drop.
+    const m = model.current;
+    const next = new Map<CellKey, string>();
+    m.committedKeys.forEach((k) => {
+      next.set(k, ""); // mark deletion for IC
+    });
+    m.data = next;
     scheduleDraw();
     await saveSpreadsheetToIDB();
   }
@@ -1106,7 +1165,7 @@ export default function SpreadsheetCanvas(): JSX.Element {
 
           <div className="header-actions">
             <button className="gk-btn gk-btn-add" onClick={addRowBelow}>+ Row</button>
-            <button className="gk-btn gk-btn-add" onClick={addColRight}>+ Col</button>
+            {/*<button className="gk-btn gk-btn-add" onClick={addColRight}>+ Col</button>*/}
             <button className="gk-btn gk-btn-export" onClick={clearAll}>Clear</button>
             <button className="gk-btn gk-btn-export">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1195,8 +1254,8 @@ export default function SpreadsheetCanvas(): JSX.Element {
                 let nextR = curR;
                 let nextC = curC;
 
-                if (e.key === "ArrowLeft" || (e.key === "Tab" && e.shiftKey)) nextC = clamp(curC - 1, 0, model.current.cols - 1);
-                if (e.key === "ArrowRight" || (e.key === "Tab" && !e.shiftKey)) nextC = clamp(curC + 1, 0, model.current.cols - 1);
+                if (e.key === "ArrowLeft" || (e.key === "Tab" && e.shiftKey)) nextC = clamp(curC - 1, 0, COLS_DEFAULT_AMOUNT - 1);
+                if (e.key === "ArrowRight" || (e.key === "Tab" && !e.shiftKey)) nextC = clamp(curC + 1, 0, COLS_DEFAULT_AMOUNT - 1);
                 if (e.key === "ArrowUp") nextR = clamp(curR - 1, 0, model.current.rows - 1);
                 if (e.key === "ArrowDown") nextR = clamp(curR + 1, 0, model.current.rows - 1);
 

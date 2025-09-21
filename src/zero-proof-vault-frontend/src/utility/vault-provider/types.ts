@@ -3,24 +3,28 @@ import { LoginsMetadataMap, SpreadsheetMap } from "@ghostkeys/ghostkeys-sdk";
 export type WebsiteLogin = {
     name: string;
     entries: WebsiteLoginEntry[];
+    commited: boolean;
 }
 
 export type WebsiteLoginEntry = {
     login: string;
     password: string;
+    commited: boolean;
 }
 
 export type SecurityNote = {
     name: string;
     content: string;
     x: number;
+    committed: boolean;
 }
 
 export type FlexGridDataKey = { col: number; row: number };
 
 export type FlexibleGridCell = {
     key: FlexGridDataKey;
-    value: string
+    value: string;
+    commited: boolean;
 }
 
 export type FlexibleGridColumn = {
@@ -29,6 +33,7 @@ export type FlexibleGridColumn = {
         index: number;
         hidden: boolean
     };
+    commited: boolean;
 }
 
 export type ICGridColumns = Array<[number, [Uint8Array | number[], boolean]]>

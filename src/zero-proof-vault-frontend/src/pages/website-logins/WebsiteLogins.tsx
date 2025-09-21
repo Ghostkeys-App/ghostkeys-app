@@ -8,6 +8,7 @@ import {
   useVaultProviderState,
 } from "../../utility/vault-provider"
 import {
+  Vault,
   WebsiteLogin,
   WebsiteLoginEntry
 } from "../../utility/vault-provider/types.ts";
@@ -33,12 +34,12 @@ export default function WebsiteLogins(): JSX.Element {
 
   // Derived values
   const websiteLogins: WebsiteLogin[] = useMemo(
-    () => currentVault?.data?.website_logins || [],
+    () => currentVault?.data.website_logins || [],
     [currentVault]
   );
 
   const filteredWebsiteLogins: WebsiteLogin[] = React.useMemo(() => {
-    const all = currentVault?.data?.website_logins || [];
+    const all = getVisibleWebsiteLogins(currentVault);
     const needle = q.trim().toLowerCase();
     if (!needle) return all;
     return all.filter((s) =>
@@ -52,12 +53,24 @@ export default function WebsiteLogins(): JSX.Element {
     [currentVault]
   );
 
+  function getVisibleWebsiteLogins(vault: Vault | null) {
+    let logins: WebsiteLogin[] = [];
 
-  // TEMP FOR TEST
-  // async function zxc() {
-  //   const a = await getICVault(currentVault!.icpPublicAddress!);
-  //   console.log('GET: ', currentVault!.icpPublicAddress!, a)
-  // }
+    if (!vault?.data?.website_logins?.length) {
+      return [];
+    }
+
+    vault.data.website_logins.forEach((login) => {
+      let shallowLogin = JSON.parse(JSON.stringify(login))
+
+      if (shallowLogin.name) {
+        shallowLogin.entries = login.entries.filter((entry) => entry.login && entry.password);
+        logins.push(shallowLogin);
+      }
+    })
+
+    return logins;
+  }
 
 
   async function onAddEntry(login: string, password: string) {
@@ -69,14 +82,14 @@ export default function WebsiteLogins(): JSX.Element {
       return;
     }
 
-    sitesShallow[idx] = { ...site, entries: [{ login, password }, ...site.entries] };
+    sitesShallow[idx] = { ...site, entries: [{ login, password, commited: false }, ...site.entries] };
     await saveWebsiteLoginsToIDB(sitesShallow);
     setOpenAddEntryForIdx(null);
     toast.success('Successfully added the entry');
   }
 
   async function onAddSite(siteName: string) {
-    await saveWebsiteLoginsToIDB([{ name: siteName, entries: [] }, ...websiteLogins]);
+    await saveWebsiteLoginsToIDB([{ name: siteName, entries: [], commited: false }, ...websiteLogins]);
   }
 
   async function saveWebsiteLoginsToIDB(website_logins: WebsiteLogin[]) {
@@ -125,7 +138,21 @@ export default function WebsiteLogins(): JSX.Element {
       return;
     }
 
-    const filtered = websiteLogins.filter((_, i) => i !== idx);
+    const filtered = websiteLogins.filter((site, i) => {
+      if (i == idx) {
+        if (site.commited) {
+          site.name = "";
+          site.entries.forEach((entry) => {
+            entry.login = "";
+            entry.password = "";
+          })
+        } else {
+          return false;
+        }
+      }
+
+      return true;
+    });
     await saveWebsiteLoginsToIDB(filtered);
     setDeleteSiteIdx(null);
     toast.success("Successfully deleted");
@@ -151,6 +178,7 @@ export default function WebsiteLogins(): JSX.Element {
     }
 
     const newEntry: WebsiteLoginEntry = {
+      ...entry,
       login: newLogin,
       password: password,
     };
@@ -177,12 +205,32 @@ export default function WebsiteLogins(): JSX.Element {
       return;
     }
 
-    sites[siteIdx] = {
-      ...site,
-      entries: site.entries.filter((_, j) => j !== entryIdx),
-    };
+    const newEntries = site.entries.filter((e, j) => {
+      if (j == entryIdx) {
+        if (e.commited) {
+          e.login = "";
+          e.password = "";
+        } else {
+          return false;
+        }
+      }
 
-    await saveWebsiteLoginsToIDB(sites);
+      return true;
+    });
+
+    let newSites = sites.map((v, i) => {
+      if (i == siteIdx) {
+        return {
+          name: site.name,
+          commited: site.commited,
+          entries: newEntries,
+        }
+      } else {
+        return v;
+      }
+    });
+
+    await saveWebsiteLoginsToIDB(newSites.slice());
     setDeleteEntry(null);
     toast.success("Successfully deleted");
   }

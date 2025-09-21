@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Allow override: export SHARED_VAULT_RELEASE_TAG=my-tag before running dfx build
-TAG="${SHARED_VAULT_RELEASE_TAG:-shared-canister-dev-v0.6.4}"
+TAG="${SHARED_VAULT_RELEASE_TAG:-shared-canister-dev-v0.6.6}"
 BASE="https://github.com/Ghostkeys-App/vault-canister/releases/download/${TAG}"
 
 WASM_DIR=".dfx/canisters"

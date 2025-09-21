@@ -18,7 +18,7 @@ export async function decrypt_and_adapt_spreadsheet(spreadsheet: Spreadsheet, fn
             const valueStr = Buffer.from(value).toString();
             const valueDecrp = await aesDecrypt(valueStr, fnKD);
             const key: FlexGridDataKey = { col: y, row: x };
-            flexible_grid_cells.push({ key, value: valueDecrp });
+            flexible_grid_cells.push({ key, value: valueDecrp, commited: true });
         }
     }
     return flexible_grid_cells;
@@ -29,7 +29,7 @@ export async function decrypt_and_adapt_columns(columns: ICGridColumns, fnKD: Ui
     for (const [index, [name, hidden]] of columns) {
         const nameStr = Buffer.from(name).toString();
         const descrpName = await aesDecrypt(nameStr, fnKD);
-        flexible_grid_columns.push({ name: descrpName, meta: { index, hidden } });
+        flexible_grid_columns.push({ name: descrpName, meta: { index, hidden }, commited: true });
     }
     return flexible_grid_columns;
 }

@@ -20,7 +20,7 @@ export async function decrypt_and_adapt_notes(notes: Notes, fnKD: Uint8Array<Arr
             console.log('labelDcrp', labelDcrp);
             const noteDcrp = await aesDecrypt(noteStr, fnKD);
             console.log('noteDcrp', noteDcrp);
-            secure_notes.push({ name: labelDcrp, content: noteDcrp, x });
+            secure_notes.push({ name: labelDcrp, content: noteDcrp, x, committed: true });
         } catch (e) {
             console.log("Error on dycript", JSON.stringify(e));
         }
