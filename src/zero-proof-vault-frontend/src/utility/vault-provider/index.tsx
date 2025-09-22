@@ -394,8 +394,9 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
 
         const api = await getSharedVaultCanisterAPI();
         const vaultPrincipal = Principal.fromText(vaultIcpPublicAddress);
+        console.log('getICVault inner response before')
         const response = await api.get_user_vault(vaultPrincipal);
-
+        console.log('getICVault inner response after', response);
         if (response) {
             return await decryptAndAdaptVaultData(vaultIcpPublicAddress, response);
         }
