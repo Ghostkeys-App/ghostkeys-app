@@ -20,10 +20,10 @@ export type APIContextType = {
 const APIContext = createContext<APIContextType | undefined>(undefined);
 export function APIContextProvider({ children }: { children: ReactNode }) {
     const [sharedVaultCanisterId, setSharedVaultCanisterId] = useState<Principal>();
-    const [vetKDDerivedKey, setVetKDDerivedKey] = useState<Uint8Array>();
+    const [vetKDDerivedKey, setVetKDDerivedKey] = useState<Uint8Array | null>(null);
     const { currentProfile } = useIdentitySystem();
 
-    useEffect(() => { }, []);
+    useEffect(() => { setVetKDDerivedKey(null) }, [currentProfile]);
 
     const factoryAgentRef = useRef<HttpAgent | null>(null);
     const sharedAgentRef = useRef<HttpAgent | null>(null);
@@ -70,11 +70,10 @@ export function APIContextProvider({ children }: { children: ReactNode }) {
             if ('Ok' in derivedVetKD)
                 validVetKD = new Uint8Array(derivedVetKD.Ok);
             else {
-                console.warn("Couldn't derive VetKD. Error: ", derivedVetKD.Err);
                 validVetKD = new Uint8Array();
             }
         }
-        setVetKDDerivedKey(validVetKD.length > 0 ? validVetKD : undefined);
+        setVetKDDerivedKey(validVetKD.length > 0 ? validVetKD : null);
         return validVetKD;
     }, [currentProfile]);
 

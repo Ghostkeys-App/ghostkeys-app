@@ -3,10 +3,13 @@ import { Globe, Lock, Grid3X3, RotateCcw } from "lucide-react";
 import { useIdentitySystem } from "../../utility/identity";
 import VaultSelector from "../vault-selector/VaultSelector.tsx";
 import { useVaultProviderActions, useVaultProviderState } from "../../utility/vault-provider";
-import ProfileModal from "../modals/profile-modal/ProfileModal.tsx";
+import ProfileMenu from "../profile-menu/ProfileMenu.tsx";
+import { Sparkles, Settings as SettingsIcon, UserPlus } from "lucide-react";
 import { toast } from "../../utility/toast";
 import { english } from "viem/accounts";
 import GKModal from "../modals/gk-modal/GKModal.tsx";
+import GKFormModal from "../modals/gk-form-modal/GKFormModal.tsx";
+import { useNavigate } from "react-router-dom";
 
 // --- Types ---
 export type TemplateKey =
@@ -52,11 +55,14 @@ export default function TemplateSidebar({
   selected,
   onSelect,
 }: TemplateSidebarProps) {
-  const { currentProfile } = useIdentitySystem();
+  const { currentProfile, profiles } = useIdentitySystem();
   const { validateAndImportIdentityWithVaultFromSeed } = useVaultProviderActions();
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileAnchorRef = React.useRef<HTMLDivElement>(null);
   const [confirmReloadOpen, setConfirmReloadOpen] = useState(false);
   const [canReload, setCanReload] = useState(false);
+  const navigate = useNavigate();
 
   const { currentVault } = useVaultProviderState();
   const { getICVault, saveCurrentVaultDataToIDB } = useVaultProviderActions();
@@ -66,7 +72,7 @@ export default function TemplateSidebar({
   }, [currentVault]);
 
   const openProfile = () => {
-    setShowProfileModal(true);
+    setShowProfileMenu(true);
   };
 
   const doReload = useCallback(async () => {
@@ -186,6 +192,7 @@ export default function TemplateSidebar({
           tabIndex={0}
           aria-label="Open profile settings"
           onClick={openProfile}
+          ref={profileAnchorRef}
           onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openProfile()}
           data-tip="Profile & Settings"
         >
@@ -203,10 +210,18 @@ export default function TemplateSidebar({
           </svg>
         </div>
       </div>
-      <ProfileModal
-        open={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
-        onImport={handleImport}
+      <ProfileMenu
+        open={showProfileMenu}
+        anchorEl={profileAnchorRef.current}
+        onClose={() => setShowProfileMenu(false)}
+        beforeItems={[
+          { icon: <Sparkles size={16} />, label: 'Upgrade to Pro (coming soon)', disabled: true },
+          { icon: <SettingsIcon size={16} />, label: 'Settings', onClick: () => { navigate("/settings"); setShowProfileMenu(false) } },
+        ]}
+        afterItems={[
+          { icon: <UserPlus size={16} />, label: 'Add Profile', onClick: () => { setShowProfileMenu(false); setShowProfileModal(true); } },
+          { label: 'Switch Profile', hasSubmenu: true, disabled: (profiles?.length ?? 1) <= 1 }
+        ]}
       />
       <GKModal
         open={confirmReloadOpen}
@@ -233,6 +248,30 @@ export default function TemplateSidebar({
           </label>
         </div>
       </GKModal>
+
+      <GKFormModal
+        open={showProfileModal}
+        title="Add Profile"
+        description="Enter a 12-word seed phrase to add a profile. Importing seed will result in Switching to it immidiatelly. You will loose all not synced changes."
+        fields={[
+          {
+            name: "seed",
+            label: "Seed phrase",
+            placeholder: "Enter your 12 word phrase",
+            type: "textarea",
+            required: true,
+          },
+        ]}
+        okLabel="Add"
+        cancelLabel="Cancel"
+        onClose={() => setShowProfileModal(false)}
+        onSubmit={async (values) => {
+          if (values.seed && values.seed.trim()) {
+            await handleImport(values.seed.trim());
+            setShowProfileModal(false);
+          }
+        }}
+      />
     </aside>
   );
 }

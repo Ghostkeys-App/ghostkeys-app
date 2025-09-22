@@ -1,6 +1,5 @@
 import "../../styles/theme.scss";
 import TemplateSidebar from "../../components/sidebar/NewSidebar.tsx";
-import React from "react";
 import {Outlet, useLocation, useNavigate} from "react-router-dom";
 import {pathToKey, ROUTES} from "./constants.tsx";
 

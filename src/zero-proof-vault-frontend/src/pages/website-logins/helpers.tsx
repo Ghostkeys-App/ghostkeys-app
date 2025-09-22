@@ -1,4 +1,4 @@
-import {WebsiteLogin} from "../../utility/vault-provider";
+import {WebsiteLogin} from "../../utility/vault-provider/types";
 import React from "react";
 
 export function siteIconFor(name: string): string | undefined {

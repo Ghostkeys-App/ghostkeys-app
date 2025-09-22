@@ -23,3 +23,13 @@ dist/
 
 # environment variables
 .env
+
+# Chrome extension
+src/chrome-extension/dist/
+src/chrome-extension/node_modules/
+src/chrome-extension/.cache/
+src/chrome-extension/.parcel-cache/
+src/chrome-extension/.vite/
+src/chrome-extension/.turbo/
+src/chrome-extension/coverage/
+src/chrome-extension/*.zip

@@ -13,9 +13,12 @@
   },
   "type": "module",
   "workspaces": [
-    "src/zero-proof-vault-frontend"
+    "src/zero-proof-vault-frontend",
+    "src/zero-proof-partner-iframe"
   ],
   "dependencies": {
+    "@ghostkeys/ghostkeys-sdk": "^1.1.9",
+    "buffer": "^6.0.3",
     "noble": "^1.9.1"
   },
   "devDependencies": {
