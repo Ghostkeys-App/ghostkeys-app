@@ -82,6 +82,14 @@ GhostKeys is split into three logical parts:
 
 ---
 
+## Lean Serial Protocol
+
+* A purpose-built message format for **ultra-fast syncs**.
+* Only send **changed data**, ensuring minimal overhead.
+* **Ghostkeys SDK** provides dedicated data structures and serializers for easy frontend integration.
+
+---
+
 ## Security Model
 
 This section explains how GhostKeys derives identities and keys and how it encrypts/decrypts data. **All cryptography happens client-side; only ciphertext and public parameters ever touch the network.**
