@@ -1,7 +1,8 @@
 import React, {useMemo} from "react";
 import funnyGhostIcon from "../../../public/funny-ghost.svg";
 import GKFormModal from "../../components/modals/gk-form-modal/GKFormModal.tsx";
-import {SecurityNote, useVaultProviderActions, useVaultProviderState} from "../../utility/vault-provider";
+import {SecurityNote, Vault} from "../../utility/vault-provider/types.ts";
+import {useVaultProviderActions, useVaultProviderState} from "../../utility/vault-provider";
 import {toast} from "../../utility/toast";
 import {copyToClipboard} from "../../utility/clipboard";
 
@@ -17,7 +18,7 @@ export default function SecurityNotes(): JSX.Element {
 
   // Derived values
   const filteredSecurityNotes = React.useMemo(() => {
-    const all = currentVault?.data.secure_notes || [];
+    const all = getVisibleNotes(currentVault);
     const needle = q.trim().toLowerCase();
     if (!needle) return all;
     return all.filter((n) => n.name.toLowerCase().includes(needle) || n.content.toLowerCase().includes(needle));
@@ -33,9 +34,27 @@ export default function SecurityNotes(): JSX.Element {
       [currentVault]
   );
 
+  function getVisibleNotes(vault: Vault | null) {
+    let notes: SecurityNote[] = [];
+
+    if (!vault?.data?.secure_notes?.length) {
+      return [];
+    }
+
+    vault.data.secure_notes.forEach((note) => {
+      let shallowNote = JSON.parse(JSON.stringify(note))
+
+      if (note.name && note.content) {
+        notes.push(shallowNote);
+      }
+    })
+
+    return notes;
+  }
+
   async function onAddSecurityNote(values: { title: string; body: string }) {
     if (!currentVault) {return}
-    const newSecurityNote: SecurityNote = {name: values.title, content: values.body};
+    const newSecurityNote: SecurityNote = {name: values.title, content: values.body, x: editingNoteId || currentVault.data.secure_notes.length + 1, committed: false};
     await saveCurrentVaultDataToIDB({...currentVault.data, secure_notes: [newSecurityNote, ...currentVault.data.secure_notes]});
     setOpenAddNote(false);
     toast.success('Successfully added the note');
@@ -44,7 +63,8 @@ export default function SecurityNotes(): JSX.Element {
   async function onEditSecurityNote(values: { title: string; body: string }) {
     if (!currentVault) return;
     if (editingNoteId === null) return;
-    const updatedSecurityNote: SecurityNote = {name: values.title, content: values.body};
+    const currentSecurityNote: SecurityNote = currentVault.data.secure_notes[editingNoteId];
+    const updatedSecurityNote: SecurityNote = {name: values.title, content: values.body, x: editingNoteId, committed: currentSecurityNote.committed};
     const updatedSecurityNotes: SecurityNote[] = filteredSecurityNotes.map((sn, i) => i == editingNoteId ? updatedSecurityNote : sn);
 
     await saveCurrentVaultDataToIDB({...currentVault.data, secure_notes: updatedSecurityNotes});
@@ -54,7 +74,18 @@ export default function SecurityNotes(): JSX.Element {
 
   async function deleteSecurityNote(idx: number) {
     if (!currentVault) return;
-    const updatedSecurityNotes: SecurityNote[] = filteredSecurityNotes.filter((_, i) => i != idx);
+    const updatedSecurityNotes: SecurityNote[] = filteredSecurityNotes.filter((note, i) => {
+      if (i == idx) {
+        if (note.committed) {
+          note.name = "";
+          note.content = "";
+        } else {
+          return false;
+        }
+      }
+
+      return true;
+    });
 
     await saveCurrentVaultDataToIDB({...currentVault.data, secure_notes: updatedSecurityNotes});
     toast.success('Successfully deleted the note');
@@ -170,7 +201,7 @@ export default function SecurityNotes(): JSX.Element {
             okLabel="Create"
             fields={[
               { name: "title", label: "Title", placeholder: "e.g. Recovery steps", required: true },
-              { name: "body",  label: "Note",  type: "textarea", placeholder: "Write your note…" },
+              { name: "body",  label: "Note",  type: "textarea", placeholder: "Write your note…", required: true },
             ]}
             onSubmit={(v) => onAddSecurityNote({ title: v.title, body: v.body })}
         />
