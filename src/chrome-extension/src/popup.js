@@ -20,7 +20,7 @@ const el = {
     cardRoot: qs('cardRoot'),
 };
 
-const MANAGE_URL = 'https://ghostkeys.com';
+const MANAGE_URL = 'https://ghostkeys.app';
 
 /** In-memory app snapshot reflected by render() */
 let app = { principal: null, vaults: [], selectedId: null };
