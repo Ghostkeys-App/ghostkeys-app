@@ -125,13 +125,10 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
             req.onsuccess = () => res(req.result as Vault[]);
             req.onerror = () => rej("Failed to list vaults");
         });
-        console.log("allVaults", allVaults);
         // Try getting from IC
         if (allVaults.length === 0) {
             const userExists = await userExistsWithVetKD(currentProfile.principal.toString());
-            console.log('userExists', userExists);
             const icUserVaults = userExists ? await getAllICVaults(currentProfile.principal) : null;
-            console.log('icUserVaults', icUserVaults);
             if (icUserVaults === null) {
                 // No vaults returned per existing user --> create new one and store in index DB
                 if (!currentProfile) throw new Error("No profile set");
@@ -342,21 +339,10 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const fnKD = await deriveFinalKey(vaultKD, vetKD);
         const encryptedVaultName: string = await aesEncrypt(vault.vaultName, fnKD);
 
-        console.log('idb spreadsheet data: ', vault.data.flexible_grid);
         const encSp = await encryptSpreadsheet(vault.data.flexible_grid, fnKD);
-        console.log('encrypted spreadsheet data: ', encSp);
-
-        console.log('idb spreadsheet columns: ', vault.data.flexible_grid_columns);
         const encSpC = await encryptSpreadsheetColumns(vault.data.flexible_grid_columns, fnKD);
-        console.log('encrypted spreadsheet columns: ', encSpC);
-
-        console.log('idb notes: ', vault.data.secure_notes);
         const encSn = await encryptSecureNotes(vault.data.secure_notes, fnKD);
-        console.log('encrypted notes: ', encSn);
-
-        console.log('idb logins: ', vault.data.website_logins);
         const { meta, logins } = await encryptWebsiteLoginsAndMetadata(vault.data.website_logins, fnKD);
-        console.log('encrypted logins: ', meta, logins);
 
         const serializedGlobalSync = serializeGlobalSync(encSp, encSpC, encSn, meta, logins);
         return { name: encryptedVaultName, data: serializedGlobalSync };
@@ -370,17 +356,10 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         const fnKD = await deriveFinalKey(vaultKD, vetKD);
 
         const flexible_grid_columns = await decrypt_and_adapt_columns(icVaultData.spreadsheet_columns, fnKD);
-        console.log('flexible_grid_columns', flexible_grid_columns);
         const flexible_grid = await decrypt_and_adapt_spreadsheet(icVaultData.spreadsheet, fnKD);
-        console.log('flexible_grid', flexible_grid);
-
         const secure_notes = await decrypt_and_adapt_notes(icVaultData.notes, fnKD);
-        console.log('secure_notes', secure_notes);
         const website_logins = await decrypt_and_adapt_logins(icVaultData.logins, fnKD);
-        console.log('website_logins', website_logins);
-
         const vaultNameStr = Buffer.from(icVaultData.vault_name).toString();
-        console.log('vaultNameStr', vaultNameStr);
         const vaultName = await aesDecrypt(vaultNameStr, fnKD);
 
         return {
@@ -394,9 +373,7 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
 
         const api = await getSharedVaultCanisterAPI();
         const vaultPrincipal = Principal.fromText(vaultIcpPublicAddress);
-        console.log('getICVault inner response before')
         const response = await api.get_user_vault(vaultPrincipal);
-        console.log('getICVault inner response after', response);
         if (response) {
             return await decryptAndAdaptVaultData(vaultIcpPublicAddress, response);
         }
@@ -412,7 +389,6 @@ export function VaultContextProvider({ children }: { children: ReactNode }) {
         if (!currentProfile) throw new Error("No profile set");
         const api = await getSharedVaultCanisterAPI();
         const allVaults = await api.get_all_user_vaults(userPrincipalId ?? currentProfile.principal);
-        console.log('allvaults', allVaults);
         if (allVaults.vaults.length > 0) {
             const allDecryptedVaultsData = [];
             for (let [principalVaultId, vaultData] of allVaults.vaults) {
