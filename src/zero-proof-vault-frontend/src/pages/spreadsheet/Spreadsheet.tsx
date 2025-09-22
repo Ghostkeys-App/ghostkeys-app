@@ -84,7 +84,7 @@ export default function SpreadsheetCanvas(): JSX.Element {
       if (!currentVault) return;
       applySpreadsheetFromVault(currentVault.data);
     })();
-  }, [currentVaultId]);
+  }, [currentVault]);
 
   React.useEffect(() => {
     // Always show editor for a single-cell selection; hide it for ranges/headers
@@ -393,12 +393,15 @@ export default function SpreadsheetCanvas(): JSX.Element {
       const v = cell.value ?? "";
       const k = keyOf(r, c);
 
-      // record commit state even if value is empty
-      if ((cell as any).commited === true) {
-        m.committedKeys.add(k);
-      }
-      if (v != null && v !== "") {
-        m.data.set(k, v);
+      const committed = (cell as any).commited === true;
+      if (committed) m.committedKeys.add(k);
+      // keep empty-string in m.data if committed (tombstone), otherwise skip
+      if (v !== null && v !== undefined) {
+        if (v === "") {
+          if (committed) m.data.set(k, "");
+        } else {
+          m.data.set(k, v);
+        }
       }
 
       if (r > maxRow) {
@@ -416,7 +419,7 @@ export default function SpreadsheetCanvas(): JSX.Element {
     }
 
     // reset selection to A1
-    setSel({ r0: 0, c0: 0, r1: 0, c1: 0 });
+    // setSel({ r0: 0, c0: 0, r1: 0, c1: 0 });
 
     // Redraw
     requestAnimationFrame(() => {
@@ -442,6 +445,7 @@ export default function SpreadsheetCanvas(): JSX.Element {
 
     // Flatten cells. Include empty-string values for committed cells (IC deletion semantics).
     const flexible_grid: Array<{ key:{col:number;row:number}; value:string; commited?: boolean }> = [];
+    const addedKeys = new Set<string>();
     for (const [k, v] of m.data.entries()) {
       const { r, c } = parseKey(k);
       const isCommitted = m.committedKeys.has(k);
@@ -449,6 +453,15 @@ export default function SpreadsheetCanvas(): JSX.Element {
       // but guard anyway: skip only if empty AND not committed
       if (v === "" && !isCommitted) continue;
       flexible_grid.push({ key: { col: c, row: r }, value: v, commited: isCommitted });
+      addedKeys.add(k);
+    }
+
+    // Ensure tombstones for committed keys that aren't present in m.data
+    for (const k of m.committedKeys) {
+      if (!addedKeys.has(k)) {
+        const { r, c } = parseKey(k);
+        flexible_grid.push({ key: { col: c, row: r }, value: "", commited: true });
+      }
     }
 
     // columns meta (DIFF-ONLY):
@@ -1002,17 +1015,29 @@ export default function SpreadsheetCanvas(): JSX.Element {
   // Toolbar: add row/col / hide/unhide / show all
   async function addRowBelow() {
     const pos = Math.max(sel.r0, sel.r1) + 1;
-    const next = new Map<CellKey, string>();
-    const nextCommitted = new Set<string>();
 
-    model.current.data.forEach((v, k) => {
-      const { r, c } = parseKey(k);
-      const nk = r >= pos ? keyOf(r + 1, c) : k;
-      next.set(nk, v);
-      if (model.current.committedKeys.has(k)) nextCommitted.add(nk);
-    });
+    // Build bottom-up to avoid intermediate collisions, and DO NOT write tombstones here.
+    const entries = Array.from(model.current.data.entries())
+        .map(([k, v]) => ({ k, v, ...parseKey(k) }))
+        .sort((a, b) => b.r - a.r); // descending by row
+
+    const next = new Map<CellKey, string>();
+    for (const e of entries) {
+      const { r, c, k, v } = e;
+      if (r >= pos) {
+        // shift non-empty values down; skip empties (tombstones handled at save-time)
+        if (v !== "") {
+          next.set(keyOf(r + 1, c), v);
+        }
+        // do NOT set anything at old key `k` here
+      } else {
+        // rows above the insertion point stay unchanged (including any existing empties)
+        next.set(k, v);
+      }
+    }
     model.current.data = next;
-    model.current.committedKeys = nextCommitted;
+    // IMPORTANT: committedKeys remains unchanged; new positions are NOT committed
+
     model.current.rows += 1;
 
     ensureSize(model.current.rows, COLS_DEFAULT_AMOUNT);
@@ -1073,27 +1098,34 @@ export default function SpreadsheetCanvas(): JSX.Element {
     const end = Math.min(start + count - 1, m.rows - 1);
     const removed = end - start + 1;
 
-    // 1) Rebuild data: rows in [start..end] -> if committed: keep as empty-string; else drop.
-    // Rows below shift up by `removed`
+    // 1) Rebuild data:
+    // - Deleted rows [start..end]: committed -> keep tombstone at SAME key (k:""); otherwise drop.
+    // - Rows below (r > end): move to new row (nk), and if committed -> ALSO keep tombstone at old key (k:"").
     const next = new Map<CellKey, string>();
     const nextCommitted = new Set<string>();
     m.data.forEach((v, k) => {
       const { r, c } = parseKey(k);
       const isCommitted = m.committedKeys.has(k);
       if (r < start) {
+        // unchanged
         next.set(k, v);
         if (isCommitted) nextCommitted.add(k);
       } else if (r >= start && r <= end) {
+        // deleted row: commit -> tombstone at original key
         if (isCommitted) {
-          const nk = keyOf(r, c);
-          next.set(nk, ""); // mark deletion for IC
-          nextCommitted.add(nk);
+          next.set(k, "");    // mark deletion for IC at original position
+          nextCommitted.add(k);
         }
-        // else drop
+        // uncommitted -> drop
       } else {
+        // move upward
         const nk = keyOf(r - removed, c);
-        next.set(nk, v);
-        if (isCommitted) nextCommitted.add(nk);
+        next.set(nk, v);      // new position (uncommitted)
+        if (isCommitted) {
+          // also tombstone old position so BE deletes it
+          next.set(k, "");
+          nextCommitted.add(k); // keep original key as committed (BE knows this one)
+        }
       }
     });
     m.data = next;
